@@ -1,20 +1,18 @@
-const express = require('express')
+const express = require('express');
+const bodyParser = require('body-parser');
 const cors = require('cors');
-app.use(cors());
+const MemoryDB = require('./db/memory');
+const newId = require('./utils/id');
 
-const bodyParser = require('body-parser')
-const cors = require('cors')
-const MemoryDB = require('./db/memory')
-const newId = require('./utils/id')
+const PORT = process.env.PORT || 3000;
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 
-const PORT = process.env.PORT || 3000
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*'
+const app = express();
+app.use(cors());               // <- enable CORS for all origins (fine for now)
+app.use(bodyParser.json());
 
-const app = express()
-app.use(bodyParser.json())
-app.use(cors({ origin: FRONTEND_ORIGIN }))
+const db = new MemoryDB();
 
-const db = new MemoryDB()
 
 // Seed demo grams and perks
 ;(function seed(){
