@@ -16,7 +16,8 @@ const db = new MemoryDB();
 
 // Seed demo grams and perks
 ;(function seed(){
-  const g1 = db.createGram({ id: 'TEST1', title: 'Blue Skies #1', image_url: 'https://via.placeholder.com/480x320?text=Blue+Skies' })
+    const g1 = db.createGram({
+        id: 'TEST1', title: 'Blue Skies #1', image_url: 'https://placehold.co/480x320?text=Blue+Skies' })
   db.setOwner(g1.id, '111')
   db.addPerk(g1.id, { id: newId(8), business_id: 'CAFE57', business_name: 'Café Blue', type: 'discount', metadata: { discount_percent: 10 }, cooldown_seconds: 86400 })
 })()
