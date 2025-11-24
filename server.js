@@ -1,4 +1,7 @@
 const express = require('express')
+const cors = require('cors');
+app.use(cors());
+
 const bodyParser = require('body-parser')
 const cors = require('cors')
 const MemoryDB = require('./db/memory')
