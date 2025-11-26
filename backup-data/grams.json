@@ -1,0 +1,27 @@
+[
+  {
+    "id": "TEST1",
+    "slug": "blue-skies-1",
+    "nfc_tag_id": "ABC123",
+    "title": "Blue Skies #1",
+    "image_url": "https://placehold.co/480x320?text=Blue+Skies",
+    "description": "First Gram in the Blue Skies series.",
+    "effects": {
+      "frame": "gold",
+      "glow": true
+    },
+    "owner_id": "111",
+    "perks": [
+      {
+        "id": "hGf-aM9D",
+        "business_id": "CAFE57",
+        "business_name": "Café Blue",
+        "type": "discount",
+        "metadata": {
+          "discount_percent": 10
+        },
+        "cooldown_seconds": 86400
+      }
+    ]
+  }
+]
