@@ -15,29 +15,31 @@ const db = new MemoryDB();
 
 // Seed demo grams and perks
 ; (function seed() {
-    // in server.js seed block
-
     const g1 = db.createGram({
-        id: 'TEST1',
-        slug: 'blue-sitting-cat-1',
-        nfc_tag_id: 'TAG-CAT-001',
+        id: 'G001',                             // internal ID
+        slug: 'blue-sitting-cat-1',             // URL friendly
+        nfc_tag_id: 'TAG-G001',                 // what you’ll encode in the NFC tag
         title: 'Blue Sitting Cat #1',
         image_url: 'https://cdn.shopify.com/s/files/1/0919/6309/7469/files/GRAM_For-Print-on-CP1300-working-on-BOOMjpg_03_3_89a09c5e-4107-46f7-a372-e86871c6932a.jpg?v=1764603192',
         description: 'Watercolour cat from the NFC Gram collection.',
-        effects: { frame: 'black' }
+        effects: { frame: 'black' },
+        owner_id: null,                         // unclaimed to start
+        perks: []                               // we’ll fill with addPerk
     });
 
+    // Give it to demo owner 111 for now:
     db.setOwner(g1.id, '111');
+
     db.addPerk(g1.id, {
-        id: 'hGf-aM9D',
+        id: 'PERK1',
         business_id: 'CAFE57',
         business_name: 'Café Blue',
         type: 'discount',
         metadata: { discount_percent: 10 },
         cooldown_seconds: 86400
     });
-
 })();
+
 
 // List grams by owner (used by "My Grams" page)
 app.get('/api/grams', (req, res) => {
@@ -72,6 +74,10 @@ app.get('/api/grams/by-slug/:slug', (req, res) => {
     }
     return res.json(gram);
 });
+// Static Producer UI
+const path = require('path');
+
+app.use('/producer', express.static(path.join(__dirname, 'producer-ui')));
 
 app.listen(PORT, () => {
     console.log('Server running on', PORT);
