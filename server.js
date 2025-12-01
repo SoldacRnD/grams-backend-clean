@@ -14,6 +14,7 @@ const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 const app = express();
 app.use(cors());               // enable CORS for all origins (fine for now)
 app.use(bodyParser.json());
+
 const upload = multer({ storage: multer.memoryStorage() });
 
 
@@ -61,13 +62,14 @@ app.use('/producer', express.static(path.join(__dirname, 'producer-ui')));
 
 // Save a new Gram from Producer UI
 // Upload one or more images from Producer UI to Shopify Files
+// Upload one or more images from Producer UI to Shopify Files
 app.post('/api/producer/upload-images', upload.array('files'), async (req, res) => {
     const files = req.files || [];
     if (!files.length) {
         return res.status(400).json({ error: 'No files uploaded' });
     }
 
-    const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
+    const storeDomain = process.env.SHOPIFY_STORE_DOMAIN || process.env.SHOPIFY_SHOP_DOMAIN;
     const adminToken = process.env.SHOPIFY_ADMIN_TOKEN;
 
     if (!storeDomain || !adminToken) {
@@ -75,6 +77,7 @@ app.post('/api/producer/upload-images', upload.array('files'), async (req, res) 
     }
 
     const results = [];
+    const apiVersion = '2025-01'; // current Admin API version
 
     try {
         for (const file of files) {
@@ -88,7 +91,9 @@ app.post('/api/producer/upload-images', upload.array('files'), async (req, res) 
                 }
             };
 
-            const resp = await fetch(`https://${storeDomain}/admin/api/2024-01/files.json`, {
+            const url = `https://${storeDomain}/admin/api/${apiVersion}/files.json`;
+
+            const resp = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -97,19 +102,29 @@ app.post('/api/producer/upload-images', upload.array('files'), async (req, res) 
                 body: JSON.stringify(payload)
             });
 
+            const text = await resp.text();
+
             if (!resp.ok) {
-                const text = await resp.text();
                 console.error('Shopify upload error:', resp.status, text);
-                throw new Error('Shopify upload failed');
+                return res.status(500).json({
+                    error: `Shopify upload failed (${resp.status})`,
+                    details: text
+                });
             }
 
-            const data = await resp.json();
-            // response shape: { file: { url: "...", ... } } or { files: [...] } depending on version
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                console.error('Failed to parse Shopify response as JSON:', text);
+                return res.status(500).json({ error: 'Invalid JSON from Shopify Files API' });
+            }
+
             const fileObj = data.file || (Array.isArray(data.files) ? data.files[0] : null);
 
             if (!fileObj || !fileObj.url) {
-                console.error('Unexpected Shopify Files response:', data);
-                throw new Error('Invalid Shopify response');
+                console.error('Unexpected Shopify Files response shape:', data);
+                return res.status(500).json({ error: 'Unexpected Shopify Files response' });
             }
 
             results.push({
@@ -121,9 +136,11 @@ app.post('/api/producer/upload-images', upload.array('files'), async (req, res) 
         return res.json({ files: results });
     } catch (err) {
         console.error('Error in upload-images:', err);
-        return res.status(500).json({ error: 'Failed to upload images to Shopify' });
+        return res.status(500).json({ error: 'Failed to upload images to Shopify (exception)' });
     }
 });
+
+
 
 // OPTIONAL: image upload stub (needs Shopify credentials + node-fetch/axios)
 // app.post('/api/producer/upload-image', async (req, res) => {
