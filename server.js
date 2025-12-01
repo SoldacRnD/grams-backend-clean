@@ -15,29 +15,28 @@ const db = new MemoryDB();
 
 // Seed demo grams and perks
 ; (function seed() {
+    // in server.js seed block
+
     const g1 = db.createGram({
         id: 'TEST1',
-        slug: 'blue-skies-1',                             // for share URLs
-        nfc_tag_id: 'ABC123',                             // what goes into NFC tag
-        title: 'Blue Skies #1',
-        image_url: 'https://placehold.co/480x320?text=Blue+Skies',
-        description: 'First Gram in the Blue Skies series.',
-        effects: {
-            frame: 'gold',
-            glow: true
-        }
+        slug: 'blue-sitting-cat-1',
+        nfc_tag_id: 'TAG-CAT-001',
+        title: 'Blue Sitting Cat #1',
+        image_url: 'https://cdn.shopify.com/s/files/1/0919/6309/7469/files/GRAM_For-Print-on-CP1300-working-on-BOOMjpg_03_3_89a09c5e-4107-46f7-a372-e86871c6932a.jpg?v=1764603192',
+        description: 'Watercolour cat from the NFC Gram collection.',
+        effects: { frame: 'black' }
     });
 
-    db.setOwner(g1.id, '111');                          // demo owner
-
+    db.setOwner(g1.id, '111');
     db.addPerk(g1.id, {
-        id: newId(8),
+        id: 'hGf-aM9D',
         business_id: 'CAFE57',
         business_name: 'Café Blue',
         type: 'discount',
         metadata: { discount_percent: 10 },
         cooldown_seconds: 86400
     });
+
 })();
 
 // List grams by owner (used by "My Grams" page)
