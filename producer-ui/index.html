@@ -1,66 +1,98 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <title>Gram Producer Tool</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="utf-8">
+    <title>Gram Producer Tool</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<h1>Gram Producer Tool</h1>
+    <h1>Gram Producer Tool</h1>
 
-<div class="container">
+    <div class="container">
 
-  <div class="section">
-    <h2>Input</h2>
+        <div class="section">
+            <h2>Input</h2>
 
-    <label>ID (e.g. G003)</label>
-    <input id="id" type="text" placeholder="G003" />
+            <label>ID (e.g. G002)</label>
+            <input id="id" type="text" placeholder="G002" />
 
-    <label>Title</label>
-    <input id="title" type="text" placeholder="Blue Cat #3" />
+            <label>Title</label>
+            <input id="title" type="text" placeholder="Blue Cat #2" />
 
-    <label>Image URL</label>
-    <input id="image" type="text" placeholder="Paste Shopify Files URL" />
+            <label>Image URL (from Shopify Files)</label>
+            <input id="image" type="text" placeholder="Paste Shopify Files URL here" />
 
-    <label>Description</label>
-    <textarea id="desc" placeholder="Short description"></textarea>
+            <label>Description</label>
+            <textarea id="desc" placeholder="Short description"></textarea>
 
-    <label>Frame</label>
-    <select id="frame">
-      <option value="none">None</option>
-      <option value="black">Black</option>
-      <option value="gold">Gold</option>
-    </select>
+            <label>Frame</label>
+            <select id="frame">
+                <option value="none">None</option>
+                <option value="black">Black</option>
+                <option value="gold">Gold</option>
+            </select>
 
-    <label><input id="glow" type="checkbox"> Glow effect</label>
+            <label><input id="glow" type="checkbox"> Glow effect</label>
 
-    <button id="generate">Generate</button>
-  </div>
+            <hr>
 
-  <div class="section">
-    <h2>Output</h2>
+            <h3>Perks</h3>
+            <div id="perks-list"></div>
 
-    <label>Slug</label>
-    <input id="slug" type="text" readonly>
+            <div class="perk-form">
+                <label>Business ID</label>
+                <input id="perk-business-id" type="text" placeholder="CAFE57" />
 
-    <label>NFC Tag ID</label>
-    <input id="nfc" type="text" readonly>
+                <label>Business Name</label>
+                <input id="perk-business-name" type="text" placeholder="Café Blue" />
 
-    <label>Share URL</label>
-    <input id="share" type="text" readonly>
+                <label>Type</label>
+                <select id="perk-type">
+                    <option value="discount">discount</option>
+                    <option value="free_item">free_item</option>
+                </select>
 
-    <label>NFC URL</label>
-    <input id="nfcurl" type="text" readonly>
+                <label>Discount % (if discount)</label>
+                <input id="perk-discount" type="number" placeholder="10" />
 
-    <label>JSON Output</label>
-    <textarea id="json" readonly></textarea>
+                <label>Cooldown (seconds)</label>
+                <input id="perk-cooldown" type="number" placeholder="86400" />
 
-    <button id="copy">Copy JSON</button>
-  </div>
+                <button id="add-perk">Add Perk</button>
+            </div>
 
-</div>
+            <button id="generate">Generate</button>
+            <button id="save">Save to Backend</button>
+        </div>
 
-<script src="script.js"></script>
+        <div class="section">
+            <h2>Output</h2>
+
+            <label>Slug</label>
+            <input id="slug" type="text" readonly>
+
+            <label>NFC Tag ID</label>
+            <input id="nfc" type="text" readonly>
+
+            <label>Share URL</label>
+            <input id="share" type="text" readonly>
+
+            <label>NFC URL</label>
+            <input id="nfcurl" type="text" readonly>
+
+            <label>JSON Output</label>
+            <textarea id="json" readonly></textarea>
+
+            <button id="copy">Copy JSON</button>
+
+            <h3>QR Code (NFC URL)</h3>
+            <div id="qrcode"></div>
+        </div>
+
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>

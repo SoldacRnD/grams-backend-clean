@@ -12,33 +12,9 @@ app.use(cors());               // enable CORS for all origins (fine for now)
 app.use(bodyParser.json());
 
 const db = new MemoryDB();
+// Serve producer web UI
+app.use('/producer', express.static(path.join(__dirname, 'producer-ui')));
 
-// Seed demo grams and perks
-; (function seed() {
-    const g1 = db.createGram({
-        id: 'G001',                             // internal ID
-        slug: 'blue-sitting-cat-1',             // URL friendly
-        nfc_tag_id: 'TAG-G001',                 // what you’ll encode in the NFC tag
-        title: 'Blue Sitting Cat #1',
-        image_url: 'https://cdn.shopify.com/s/files/1/0919/6309/7469/files/GRAM_For-Print-on-CP1300-working-on-BOOMjpg_03_3_89a09c5e-4107-46f7-a372-e86871c6932a.jpg?v=1764603192',
-        description: 'Watercolour cat from the NFC Gram collection.',
-        effects: { frame: 'black' },
-        owner_id: null,                         // unclaimed to start
-        perks: []                               // we’ll fill with addPerk
-    });
-
-    // Give it to demo owner 111 for now:
-    db.setOwner(g1.id, '111');
-
-    db.addPerk(g1.id, {
-        id: 'PERK1',
-        business_id: 'CAFE57',
-        business_name: 'Café Blue',
-        type: 'discount',
-        metadata: { discount_percent: 10 },
-        cooldown_seconds: 86400
-    });
-})();
 
 
 // List grams by owner (used by "My Grams" page)
@@ -78,6 +54,52 @@ app.get('/api/grams/by-slug/:slug', (req, res) => {
 const path = require('path');
 
 app.use('/producer', express.static(path.join(__dirname, 'producer-ui')));
+
+// Save a new Gram from Producer UI
+app.post('/api/producer/grams', (req, res) => {
+    const gram = req.body;
+    if (!gram || !gram.id || !gram.slug || !gram.nfc_tag_id || !gram.title || !gram.image_url) {
+        return res.status(400).json({ error: 'Missing required Gram fields' });
+    }
+
+    try {
+        // Create Gram
+        const created = db.createGram({
+            id: gram.id,
+            slug: gram.slug,
+            nfc_tag_id: gram.nfc_tag_id,
+            title: gram.title,
+            image_url: gram.image_url,
+            description: gram.description || '',
+            effects: gram.effects || {},
+            owner_id: gram.owner_id || null,
+            perks: []   // we'll add perks below
+        });
+
+        // Set owner if provided
+        if (gram.owner_id) {
+            db.setOwner(created.id, String(gram.owner_id));
+        }
+
+        // Add perks if any
+        if (Array.isArray(gram.perks)) {
+            gram.perks.forEach(p => {
+                db.addPerk(created.id, p);
+            });
+        }
+
+        return res.json({ ok: true, gram: created });
+    } catch (err) {
+        console.error('Error saving Gram:', err);
+        return res.status(500).json({ error: 'Failed to save Gram' });
+    }
+});
+// OPTIONAL: image upload stub (needs Shopify credentials + node-fetch/axios)
+// app.post('/api/producer/upload-image', async (req, res) => {
+//   // TODO: parse incoming file, call Shopify Admin API /files.json
+//   // This is left as a stub because it requires your private API keys.
+//   return res.status(501).json({ error: 'Not implemented. Upload directly to Shopify Files for now.' });
+// });
 
 app.listen(PORT, () => {
     console.log('Server running on', PORT);
