@@ -37,6 +37,24 @@ document.getElementById("add-perk").onclick = () = > {
     alert("Business ID required for perk");
     return;
 }
+#uploaded-list {
+    margin-top: 10px;
+}
+
+.uploaded-item {
+    font-size: 0.9rem;
+    background: #f3f3f3;
+    padding: 6px 8px;
+    margin: 4px 0;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+    .uploaded-item span {
+        display: block;
+        word-break: break-all;
+    }
+
 
 const perk = {
     id: "PERK-" + (currentPerks.length + 1), business_id: businessId, business_name: businessName || businessId, type, metadata:

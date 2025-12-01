@@ -1,7 +1,8 @@
 const SHOP_DOMAIN = 'https://www.soldacstudio.com';   // adjust if needed
-const BACKEND_BASE = window.location.origin;          // same origin as server
+const BACKEND_BASE = window.location.origin;
 
 let currentPerks = [];
+let lastUploaded = [];  // { originalName, url }
 
 function slugify(input) {
     return input
@@ -20,13 +21,38 @@ function renderPerks() {
 
     list.innerHTML = currentPerks.map(p => {
         return `<div class="perk-item">
-      ${p.business_name || p.business_id} – ${p.type} 
+      ${p.business_name || p.business_id} – ${p.type}
       ${p.metadata && p.metadata.discount_percent ? `(${p.metadata.discount_percent}% off)` : ""}
       [cooldown: ${p.cooldown_seconds}s]
     </div>`;
     }).join("");
 }
 
+function renderUploaded() {
+    const container = document.getElementById("uploaded-list");
+    if (!lastUploaded.length) {
+        container.innerHTML = "<p>No images uploaded yet.</p>";
+        return;
+    }
+
+    container.innerHTML = lastUploaded.map((f, idx) => {
+        return `<div class="uploaded-item" data-idx="${idx}">
+      <strong>${f.originalName}</strong>
+      <span>${f.url}</span>
+      <em>Click to use as image URL</em>
+    </div>`;
+    }).join("");
+
+    container.querySelectorAll(".uploaded-item").forEach(el => {
+        el.onclick = () => {
+            const idx = parseInt(el.getAttribute("data-idx"), 10);
+            const f = lastUploaded[idx];
+            document.getElementById("image").value = f.url;
+        };
+    });
+}
+
+// Handle adding perks
 document.getElementById("add-perk").onclick = () => {
     const businessId = document.getElementById("perk-business-id").value.trim();
     const businessName = document.getElementById("perk-business-name").value.trim();
@@ -56,6 +82,44 @@ document.getElementById("add-perk").onclick = () => {
     renderPerks();
 };
 
+// Handle image upload to Shopify
+document.getElementById("upload-files").onclick = async () => {
+    const input = document.getElementById("file-input");
+    const files = input.files;
+
+    if (!files || !files.length) {
+        alert("Select at least one image file first");
+        return;
+    }
+
+    const formData = new FormData();
+    Array.from(files).forEach(f => {
+        formData.append('files', f);
+    });
+
+    try {
+        const res = await fetch(`${BACKEND_BASE}/api/producer/upload-images`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+            console.error('Upload error:', data);
+            alert('Failed to upload images');
+            return;
+        }
+
+        lastUploaded = data.files || [];
+        renderUploaded();
+        alert('Uploaded to Shopify. Click an item below to use its URL.');
+    } catch (err) {
+        console.error('Upload error:', err);
+        alert('Error uploading images to backend.');
+    }
+};
+
+// Generate Gram JSON and URLs
 document.getElementById("generate").onclick = () => {
     const id = document.getElementById("id").value.trim();
     const title = document.getElementById("title").value.trim();
@@ -106,6 +170,7 @@ document.getElementById("generate").onclick = () => {
     });
 };
 
+// Copy JSON
 document.getElementById("copy").onclick = () => {
     const text = document.getElementById("json").value;
     if (!text) {
@@ -116,6 +181,7 @@ document.getElementById("copy").onclick = () => {
     alert("JSON copied to clipboard");
 };
 
+// Save Gram to backend (persists to grams.json)
 document.getElementById("save").onclick = async () => {
     const jsonText = document.getElementById("json").value;
     if (!jsonText) {
@@ -138,19 +204,21 @@ document.getElementById("save").onclick = async () => {
             body: JSON.stringify(gram)
         });
 
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            console.error('Save error:', err);
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+            console.error('Save error:', data);
             alert('Failed to save Gram to backend');
             return;
         }
 
-        alert('Gram saved to backend (in-memory) successfully.');
+        alert('Gram saved to backend (grams.json) successfully.');
     } catch (err) {
         console.error('Save error:', err);
         alert('Error saving Gram to backend.');
     }
 };
 
-// Initial render
+// Initial renders
 renderPerks();
+renderUploaded();
+

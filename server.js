@@ -1,8 +1,12 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const path = require('path');
+const multer = require('multer');                    // NEW
+const fetch = require('node-fetch');                 // NEW
 const MemoryDB = require('./db/memory');
 const newId = require('./utils/id');
+
 
 const PORT = process.env.PORT || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
@@ -10,6 +14,8 @@ const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 const app = express();
 app.use(cors());               // enable CORS for all origins (fine for now)
 app.use(bodyParser.json());
+const upload = multer({ storage: multer.memoryStorage() });
+
 
 const db = new MemoryDB();
 // Serve producer web UI
@@ -56,44 +62,71 @@ const path = require('path');
 app.use('/producer', express.static(path.join(__dirname, 'producer-ui')));
 
 // Save a new Gram from Producer UI
-app.post('/api/producer/grams', (req, res) => {
-    const gram = req.body;
-    if (!gram || !gram.id || !gram.slug || !gram.nfc_tag_id || !gram.title || !gram.image_url) {
-        return res.status(400).json({ error: 'Missing required Gram fields' });
+// Upload one or more images from Producer UI to Shopify Files
+app.post('/api/producer/upload-images', upload.array('files'), async (req, res) => {
+    const files = req.files || [];
+    if (!files.length) {
+        return res.status(400).json({ error: 'No files uploaded' });
     }
 
+    const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
+    const adminToken = process.env.SHOPIFY_ADMIN_TOKEN;
+
+    if (!storeDomain || !adminToken) {
+        return res.status(500).json({ error: 'Shopify credentials not configured' });
+    }
+
+    const results = [];
+
     try {
-        // Create Gram
-        const created = db.createGram({
-            id: gram.id,
-            slug: gram.slug,
-            nfc_tag_id: gram.nfc_tag_id,
-            title: gram.title,
-            image_url: gram.image_url,
-            description: gram.description || '',
-            effects: gram.effects || {},
-            owner_id: gram.owner_id || null,
-            perks: []   // we'll add perks below
-        });
+        for (const file of files) {
+            const attachmentBase64 = file.buffer.toString('base64');
 
-        // Set owner if provided
-        if (gram.owner_id) {
-            db.setOwner(created.id, String(gram.owner_id));
-        }
+            const payload = {
+                file: {
+                    attachment: attachmentBase64,
+                    filename: file.originalname,
+                    mime_type: file.mimetype
+                }
+            };
 
-        // Add perks if any
-        if (Array.isArray(gram.perks)) {
-            gram.perks.forEach(p => {
-                db.addPerk(created.id, p);
+            const resp = await fetch(`https://${storeDomain}/admin/api/2024-01/files.json`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Shopify-Access-Token': adminToken
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!resp.ok) {
+                const text = await resp.text();
+                console.error('Shopify upload error:', resp.status, text);
+                throw new Error('Shopify upload failed');
+            }
+
+            const data = await resp.json();
+            // response shape: { file: { url: "...", ... } } or { files: [...] } depending on version
+            const fileObj = data.file || (Array.isArray(data.files) ? data.files[0] : null);
+
+            if (!fileObj || !fileObj.url) {
+                console.error('Unexpected Shopify Files response:', data);
+                throw new Error('Invalid Shopify response');
+            }
+
+            results.push({
+                originalName: file.originalname,
+                url: fileObj.url
             });
         }
 
-        return res.json({ ok: true, gram: created });
+        return res.json({ files: results });
     } catch (err) {
-        console.error('Error saving Gram:', err);
-        return res.status(500).json({ error: 'Failed to save Gram' });
+        console.error('Error in upload-images:', err);
+        return res.status(500).json({ error: 'Failed to upload images to Shopify' });
     }
 });
+
 // OPTIONAL: image upload stub (needs Shopify credentials + node-fetch/axios)
 // app.post('/api/producer/upload-image', async (req, res) => {
 //   // TODO: parse incoming file, call Shopify Admin API /files.json
