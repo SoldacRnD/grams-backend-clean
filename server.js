@@ -57,8 +57,6 @@ app.get('/api/grams/by-slug/:slug', (req, res) => {
     return res.json(gram);
 });
 // Static Producer UI
-const path = require('path');
-
 app.use('/producer', express.static(path.join(__dirname, 'producer-ui')));
 
 // Save a new Gram from Producer UI
