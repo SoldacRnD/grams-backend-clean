@@ -140,6 +140,45 @@ app.post('/api/producer/upload-images', upload.array('files'), async (req, res) 
     }
 });
 
+// Save a new Gram from Producer UI
+app.post('/api/producer/grams', (req, res) => {
+    const gram = req.body;
+    console.log('Incoming Gram from Producer UI:', gram);
+
+    if (!gram || !gram.id || !gram.slug || !gram.nfc_tag_id || !gram.title || !gram.image_url) {
+        console.error('Missing required Gram fields');
+        return res.status(400).json({ error: 'Missing required Gram fields' });
+    }
+
+    try {
+        const created = db.createGram({
+            id: gram.id,
+            slug: gram.slug,
+            nfc_tag_id: gram.nfc_tag_id,
+            title: gram.title,
+            image_url: gram.image_url,
+            description: gram.description || '',
+            effects: gram.effects || {},
+            owner_id: gram.owner_id || null,
+            perks: Array.isArray(gram.perks) ? gram.perks : []
+        });
+
+        if (gram.owner_id) {
+            db.setOwner(created.id, String(gram.owner_id));
+        }
+
+        if (Array.isArray(gram.perks)) {
+            gram.perks.forEach(p => db.addPerk(created.id, p));
+        }
+
+        console.log('Gram saved OK:', created.id);
+        return res.json({ ok: true, gram: created });
+    } catch (err) {
+        console.error('Error saving Gram:', err);
+        return res.status(500).json({ error: 'Failed to save Gram', details: String(err.message || err) });
+    }
+});
+
 
 
 // OPTIONAL: image upload stub (needs Shopify credentials + node-fetch/axios)
