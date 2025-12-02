@@ -30,7 +30,7 @@
       "frame": "none",
       "glow": false
     },
-    "owner_id": "111", // set to your Shopify customer id if you want it in /pages/grams
+    "owner_id": "111",
     "perks": [
       {
         "id": "PERK-1",
