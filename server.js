@@ -191,18 +191,29 @@ app.post('/api/grams/claim', (req, res) => {
         return res.status(404).json({ error: 'Gram not found' });
     }
 
-    if (gram.owner_id) {
+    // Normalize owner value (treat "null", "", etc. as no owner)
+    const rawOwner = gram.owner_id;
+    const hasOwner =
+        rawOwner !== null &&
+        rawOwner !== undefined &&
+        rawOwner !== '' &&
+        rawOwner !== 'null' &&
+        rawOwner !== 'undefined';
+
+    if (hasOwner) {
         // already claimed
-        if (String(gram.owner_id) === String(ownerId)) {
+        if (String(rawOwner) === String(ownerId)) {
             return res.json({ ok: true, alreadyOwned: true, gram });
         }
         return res.status(409).json({ error: 'Gram already claimed by another owner' });
     }
 
+    // Not claimed yet → claim it
     db.setOwner(gramId, ownerId);
     const updated = db.getGramById(gramId);
     return res.json({ ok: true, claimed: true, gram: updated });
 });
+
 
 
 // OPTIONAL: image upload stub (needs Shopify credentials + node-fetch/axios)
