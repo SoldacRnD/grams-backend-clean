@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const multer = require('multer');
 const fetch = require('node-fetch');
+const FormData = require('form-data');
 const SupabaseDB = require('./db/supabase'); // using Supabase now
 const newId = require('./utils/id');
 
@@ -109,9 +110,7 @@ async function shopifyGraphQL(query, variables = {}) {
 
 // --- 1) Create staged upload target ---
 async function createStagedUpload(file) {
-    const isImage = file.mimetype && file.mimetype.startsWith('image/');
-    const resourceType = isImage ? 'IMAGE' : 'FILE';
-
+    // For fileCreate-based flows, Shopify docs use resource: "FILE"
     const query = `
     mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
       stagedUploadsCreate(input: $input) {
@@ -128,7 +127,7 @@ async function createStagedUpload(file) {
     const input = [{
         filename: file.originalname,
         mimeType: file.mimetype,
-        resource: resourceType,
+        resource: "FILE",      // <--- ALWAYS FILE
         httpMethod: "POST"
     }];
 
@@ -137,38 +136,45 @@ async function createStagedUpload(file) {
     const errs = data.stagedUploadsCreate.userErrors || [];
     if (errs.length) {
         console.error('stagedUploadsCreate userErrors:', errs);
-        throw new Error('stagedUploadsCreate failed');
+        throw new Error('stagedUploadsCreate failed: ' + JSON.stringify(errs));
     }
 
     return data.stagedUploadsCreate.stagedTargets[0];
 }
 
+
 // --- 2) Upload binary to Shopify's S3 target ---
 async function uploadBinaryToShopify(target, file) {
     const form = new FormData();
 
-    // Shopify's required S3 parameters
+    // Shopify's required S3 parameters (policy, key, etc.)
     for (const param of target.parameters) {
         form.append(param.name, param.value);
     }
 
-    // Convert Buffer -> Blob (what web FormData expects)
-    const blob = new Blob([file.buffer], { type: file.mimetype });
-
-    // Append the file as a Blob
-    form.append('file', blob, file.originalname);
+    // Append the actual file as Buffer (form-data supports Buffers)
+    form.append("file", file.buffer, {
+        filename: file.originalname,
+        contentType: file.mimetype
+    });
 
     const res = await fetch(target.url, {
         method: 'POST',
-        body: form
+        body: form,
+        // node-fetch + form-data will set the correct Content-Type boundary
     });
 
+    const text = await res.text();
+
     if (!res.ok) {
-        const text = await res.text();
         console.error('Staged upload to Shopify S3 failed:', res.status, text);
-        throw new Error('Staged upload failed');
+        // IMPORTANT: include AWS error text in the thrown message
+        throw new Error(`Staged upload failed: ${text}`);
     }
+
+    // (Shopify's S3 usually returns 201/204 with empty body on success)
 }
+
 
 
 // --- helper: query file by id to get URL once processed ---
@@ -276,6 +282,7 @@ app.post('/api/producer/upload-images', upload.array('files'), async (req, res) 
         console.error("Error in /api/producer/upload-images:", err);
         res.status(500).json({ error: "Failed to upload files", details: err.message });
     }
+
 });
 
 
