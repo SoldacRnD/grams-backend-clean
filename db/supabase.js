@@ -1,0 +1,183 @@
+// db/supabase.js
+const { createClient } = require('@supabase/supabase-js');
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
+  console.warn('Supabase env vars missing. Check SUPABASE_URL and SUPABASE_SECRET_KEY.');
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
+
+class SupabaseDB {
+  // Create a new gram
+  async createGram(data) {
+    if (!data || !data.id) {
+      throw new Error('createGram requires an id');
+    }
+
+    const gram = {
+      id: data.id,
+      slug: data.slug || null,
+      nfc_tag_id: data.nfc_tag_id || null,
+      title: data.title || '',
+      image_url: data.image_url || '',
+      description: data.description || '',
+      effects: data.effects || {},
+      owner_id: data.owner_id || null,
+      perks: Array.isArray(data.perks) ? data.perks : []
+    };
+
+    const { data: inserted, error } = await supabase
+      .from('grams')
+      .insert(gram)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase createGram error:', error);
+      throw error;
+    }
+
+    return inserted;
+  }
+
+  async setOwner(gramId, ownerId) {
+    const { data, error } = await supabase
+      .from('grams')
+      .update({ owner_id: String(ownerId) })
+      .eq('id', gramId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase setOwner error:', error);
+      throw error;
+    }
+
+    return data;
+  }
+
+  async addPerk(gramId, perk) {
+    // Read existing perks
+    const { data: gram, error: fetchError } = await supabase
+      .from('grams')
+      .select('perks')
+      .eq('id', gramId)
+      .single();
+
+    if (fetchError) {
+      console.error('Supabase addPerk fetch error:', fetchError);
+      throw fetchError;
+    }
+
+    const perks = Array.isArray(gram.perks) ? gram.perks.slice() : [];
+
+    perks.push({
+      id: perk.id,
+      business_id: perk.business_id,
+      business_name: perk.business_name,
+      type: perk.type,
+      metadata: perk.metadata || {},
+      cooldown_seconds: perk.cooldown_seconds || 0
+    });
+
+    const { data: updated, error: updateError } = await supabase
+      .from('grams')
+      .update({ perks })
+      .eq('id', gramId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Supabase addPerk update error:', updateError);
+      throw updateError;
+    }
+
+    return updated;
+  }
+
+  async getGramsByOwner(ownerId) {
+    const { data, error } = await supabase
+      .from('grams')
+      .select('*')
+      .eq('owner_id', String(ownerId));
+
+    if (error) {
+      console.error('Supabase getGramsByOwner error:', error);
+      throw error;
+    }
+
+    return data || [];
+  }
+
+  async getGramByTag(tagId) {
+    const { data, error } = await supabase
+      .from('grams')
+      .select('*')
+      .eq('nfc_tag_id', String(tagId))
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') { // no rows
+        return null;
+      }
+      console.error('Supabase getGramByTag error:', error);
+      throw error;
+    }
+
+    return data;
+  }
+
+  async getGramBySlug(slug) {
+    const { data, error } = await supabase
+      .from('grams')
+      .select('*')
+      .eq('slug', String(slug))
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null;
+      }
+      console.error('Supabase getGramBySlug error:', error);
+      throw error;
+    }
+
+    return data;
+  }
+
+  async getGramById(id) {
+    const { data, error } = await supabase
+      .from('grams')
+      .select('*')
+      .eq('id', String(id))
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null;
+      }
+      console.error('Supabase getGramById error:', error);
+      throw error;
+    }
+
+    return data;
+  }
+
+  async getAllGrams() {
+    const { data, error } = await supabase
+      .from('grams')
+      .select('*');
+
+    if (error) {
+      console.error('Supabase getAllGrams error:', error);
+      throw error;
+    }
+
+    return data || [];
+  }
+}
+
+module.exports = SupabaseDB;
