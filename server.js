@@ -182,9 +182,11 @@ async function fetchMediaImageUrlById(fileId) {
     const query = `
     query fileById($id: ID!) {
       node(id: $id) {
-        ... on MediaImage {
+        ... on File {
           fileStatus
-          image { url }
+          preview {
+            image { url }
+          }
         }
       }
     }
@@ -192,12 +194,16 @@ async function fetchMediaImageUrlById(fileId) {
 
     const data = await shopifyGraphQL(query, { id: fileId });
     const node = data.node;
-    if (!node) return { status: null, url: null };
+    if (!node) {
+        return { status: null, url: null };
+    }
+
     return {
         status: node.fileStatus,
-        url: node.image ? node.image.url : null
+        url: node.preview && node.preview.image ? node.preview.image.url : null
     };
 }
+
 
 // --- 3) Create permanent File and try to get its CDN URL ---
 async function finalizeShopifyFile(resourceUrl, filename) {
@@ -207,7 +213,7 @@ async function finalizeShopifyFile(resourceUrl, filename) {
         files {
           id
           fileStatus
-          ... on MediaImage {
+          preview {
             image { url }
           }
         }
@@ -232,9 +238,11 @@ async function finalizeShopifyFile(resourceUrl, filename) {
     }
 
     const f = data.fileCreate.files[0];
+
     let id = f.id;
     let status = f.fileStatus;
-    let url = (f.image && f.image.url) || null;
+    // 🔑 URL now read from preview.image.url
+    let url = (f.preview && f.preview.image && f.preview.image.url) || null;
 
     // If still not READY or no URL yet, poll a couple of times
     if (!url || status !== 'READY') {
@@ -251,6 +259,7 @@ async function finalizeShopifyFile(resourceUrl, filename) {
 
     return { id, status, url };
 }
+
 
 // =====================================================================
 // FINAL ROUTE: /api/producer/upload-images
@@ -284,8 +293,6 @@ app.post('/api/producer/upload-images', upload.array('files'), async (req, res) 
     }
 
 });
-
-
 
 // -----------------------------------------------------------------------------
 // Save a new Gram from Producer UI
