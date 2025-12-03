@@ -147,14 +147,16 @@ async function createStagedUpload(file) {
 async function uploadBinaryToShopify(target, file) {
     const form = new FormData();
 
+    // Shopify's required S3 parameters
     for (const param of target.parameters) {
         form.append(param.name, param.value);
     }
 
-    form.append('file', file.buffer, {
-        filename: file.originalname,
-        contentType: file.mimetype
-    });
+    // Convert Buffer -> Blob (what web FormData expects)
+    const blob = new Blob([file.buffer], { type: file.mimetype });
+
+    // Append the file as a Blob
+    form.append('file', blob, file.originalname);
 
     const res = await fetch(target.url, {
         method: 'POST',
@@ -167,6 +169,7 @@ async function uploadBinaryToShopify(target, file) {
         throw new Error('Staged upload failed');
     }
 }
+
 
 // --- helper: query file by id to get URL once processed ---
 async function fetchMediaImageUrlById(fileId) {
