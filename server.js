@@ -81,8 +81,7 @@ app.get('/api/grams/by-slug/:slug', async (req, res) => {
 // -----------------------------------------------------------------------------
 // Upload one or more images from Producer UI to Shopify Files
 // -----------------------------------------------------------------------------
-const FormData = require('form-data');
-
+// --- Shopify GraphQL helper ---
 async function shopifyGraphQL(query, variables = {}) {
     const storeDomain = process.env.SHOPIFY_STORE_DOMAIN || process.env.SHOPIFY_SHOP_DOMAIN;
     const adminToken = process.env.SHOPIFY_ADMIN_TOKEN;
@@ -100,16 +99,19 @@ async function shopifyGraphQL(query, variables = {}) {
 
     const json = await resp.json();
 
-    if (json.errors || json.data?.stagedUploadsCreate?.userErrors?.length) {
-        console.error("Shopify GraphQL error:", json.errors || json.data.stagedUploadsCreate.userErrors);
-        throw new Error("Shopify GraphQL API Error");
+    if (json.errors) {
+        console.error('Shopify GraphQL errors:', json.errors);
+        throw new Error('Shopify GraphQL error');
     }
 
     return json.data;
 }
 
-// Create staged upload target at Shopify
+// --- 1) Create staged upload target ---
 async function createStagedUpload(file) {
+    const isImage = file.mimetype && file.mimetype.startsWith('image/');
+    const resourceType = isImage ? 'IMAGE' : 'FILE';
+
     const query = `
     mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
       stagedUploadsCreate(input: $input) {
@@ -126,42 +128,69 @@ async function createStagedUpload(file) {
     const input = [{
         filename: file.originalname,
         mimeType: file.mimetype,
-        resource: "FILE",
+        resource: resourceType,
         httpMethod: "POST"
     }];
 
     const data = await shopifyGraphQL(query, { input });
+
+    const errs = data.stagedUploadsCreate.userErrors || [];
+    if (errs.length) {
+        console.error('stagedUploadsCreate userErrors:', errs);
+        throw new Error('stagedUploadsCreate failed');
+    }
+
     return data.stagedUploadsCreate.stagedTargets[0];
 }
 
-// Upload the binary to Shopify’s staged target
+// --- 2) Upload binary to Shopify's S3 target ---
 async function uploadBinaryToShopify(target, file) {
     const form = new FormData();
 
-    // Required AWS S3 fields
     for (const param of target.parameters) {
         form.append(param.name, param.value);
     }
 
-    // Actual file
-    form.append("file", file.buffer, {
+    form.append('file', file.buffer, {
         filename: file.originalname,
         contentType: file.mimetype
     });
 
     const res = await fetch(target.url, {
-        method: "POST",
+        method: 'POST',
         body: form
     });
 
     if (!res.ok) {
         const text = await res.text();
-        console.error("Staged upload to Shopify S3 failed:", res.status, text);
-        throw new Error("Staged S3 upload failed");
+        console.error('Staged upload to Shopify S3 failed:', res.status, text);
+        throw new Error('Staged upload failed');
     }
 }
 
-// Final step: convert staged upload to permanent Shopify File asset
+// --- helper: query file by id to get URL once processed ---
+async function fetchMediaImageUrlById(fileId) {
+    const query = `
+    query fileById($id: ID!) {
+      node(id: $id) {
+        ... on MediaImage {
+          fileStatus
+          image { url }
+        }
+      }
+    }
+  `;
+
+    const data = await shopifyGraphQL(query, { id: fileId });
+    const node = data.node;
+    if (!node) return { status: null, url: null };
+    return {
+        status: node.fileStatus,
+        url: node.image ? node.image.url : null
+    };
+}
+
+// --- 3) Create permanent File and try to get its CDN URL ---
 async function finalizeShopifyFile(resourceUrl, filename) {
     const query = `
     mutation fileCreate($files: [FileCreateInput!]!) {
@@ -169,7 +198,9 @@ async function finalizeShopifyFile(resourceUrl, filename) {
         files {
           id
           fileStatus
-          preview { image { url } }
+          ... on MediaImage {
+            image { url }
+          }
         }
         userErrors { field message }
       }
@@ -184,18 +215,36 @@ async function finalizeShopifyFile(resourceUrl, filename) {
     };
 
     const data = await shopifyGraphQL(query, variables);
-    const file = data.fileCreate.files[0];
 
-    return {
-        id: file.id,
-        status: file.fileStatus,
-        url: file.preview?.image?.url || null
-    };
+    const errs = data.fileCreate.userErrors || [];
+    if (errs.length) {
+        console.error('fileCreate userErrors:', errs);
+        throw new Error('fileCreate failed');
+    }
+
+    const f = data.fileCreate.files[0];
+    let id = f.id;
+    let status = f.fileStatus;
+    let url = (f.image && f.image.url) || null;
+
+    // If still not READY or no URL yet, poll a couple of times
+    if (!url || status !== 'READY') {
+        for (let i = 0; i < 3; i++) {
+            await new Promise(r => setTimeout(r, 500)); // wait 0.5s
+            const info = await fetchMediaImageUrlById(id);
+            if (info.url) {
+                url = info.url;
+                status = info.status || status;
+                break;
+            }
+        }
+    }
+
+    return { id, status, url };
 }
 
-
 // =====================================================================
-// 🔥 FINAL ROUTE: /api/producer/upload-images
+// FINAL ROUTE: /api/producer/upload-images
 // =====================================================================
 app.post('/api/producer/upload-images', upload.array('files'), async (req, res) => {
     const files = req.files;
@@ -220,12 +269,12 @@ app.post('/api/producer/upload-images', upload.array('files'), async (req, res) 
         }
 
         res.json({ ok: true, files: results });
-
     } catch (err) {
-        console.error("Error in /upload-images:", err);
+        console.error("Error in /api/producer/upload-images:", err);
         res.status(500).json({ error: "Failed to upload files", details: err.message });
     }
 });
+
 
 
 // -----------------------------------------------------------------------------
