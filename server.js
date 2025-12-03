@@ -81,82 +81,152 @@ app.get('/api/grams/by-slug/:slug', async (req, res) => {
 // -----------------------------------------------------------------------------
 // Upload one or more images from Producer UI to Shopify Files
 // -----------------------------------------------------------------------------
-app.post('/api/producer/upload-images', upload.array('files'), async (req, res) => {
-  const files = req.files || [];
-  if (!files.length) {
-    return res.status(400).json({ error: 'No files uploaded' });
-  }
+const FormData = require('form-data');
 
-  const storeDomain = process.env.SHOPIFY_STORE_DOMAIN || process.env.SHOPIFY_SHOP_DOMAIN;
-  const adminToken = process.env.SHOPIFY_ADMIN_TOKEN;
+async function shopifyGraphQL(query, variables = {}) {
+    const storeDomain = process.env.SHOPIFY_STORE_DOMAIN || process.env.SHOPIFY_SHOP_DOMAIN;
+    const adminToken = process.env.SHOPIFY_ADMIN_TOKEN;
 
-  if (!storeDomain || !adminToken) {
-    return res.status(500).json({ error: 'Shopify credentials not configured' });
-  }
+    const endpoint = `https://${storeDomain}/admin/api/2025-01/graphql.json`;
 
-  const results = [];
-  const apiVersion = '2025-01'; // current Admin API version
-
-  try {
-    for (const file of files) {
-      const attachmentBase64 = file.buffer.toString('base64');
-
-      const payload = {
-        file: {
-          attachment: attachmentBase64,
-          filename: file.originalname,
-          mime_type: file.mimetype
-        }
-      };
-
-      const url = `https://${storeDomain}/admin/api/${apiVersion}/files.json`;
-
-      const resp = await fetch(url, {
+    const resp = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'X-Shopify-Access-Token': adminToken
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': adminToken
         },
-        body: JSON.stringify(payload)
-      });
+        body: JSON.stringify({ query, variables })
+    });
 
-      const text = await resp.text();
+    const json = await resp.json();
 
-      if (!resp.ok) {
-        console.error('Shopify upload error:', resp.status, text);
-        return res.status(500).json({
-          error: `Shopify upload failed (${resp.status})`,
-          details: text
-        });
-      }
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        console.error('Failed to parse Shopify response as JSON:', text);
-        return res.status(500).json({ error: 'Invalid JSON from Shopify Files API' });
-      }
-
-      const fileObj = data.file || (Array.isArray(data.files) ? data.files[0] : null);
-
-      if (!fileObj || !fileObj.url) {
-        console.error('Unexpected Shopify Files response shape:', data);
-        return res.status(500).json({ error: 'Unexpected Shopify Files response' });
-      }
-
-      results.push({
-        originalName: file.originalname,
-        url: fileObj.url
-      });
+    if (json.errors || json.data?.stagedUploadsCreate?.userErrors?.length) {
+        console.error("Shopify GraphQL error:", json.errors || json.data.stagedUploadsCreate.userErrors);
+        throw new Error("Shopify GraphQL API Error");
     }
 
-    return res.json({ files: results });
-  } catch (err) {
-    console.error('Error in upload-images:', err);
-    return res.status(500).json({ error: 'Failed to upload images to Shopify (exception)' });
-  }
+    return json.data;
+}
+
+// Create staged upload target at Shopify
+async function createStagedUpload(file) {
+    const query = `
+    mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+      stagedUploadsCreate(input: $input) {
+        stagedTargets {
+          url
+          resourceUrl
+          parameters { name value }
+        }
+        userErrors { field message }
+      }
+    }
+  `;
+
+    const input = [{
+        filename: file.originalname,
+        mimeType: file.mimetype,
+        resource: "FILE",
+        httpMethod: "POST"
+    }];
+
+    const data = await shopifyGraphQL(query, { input });
+    return data.stagedUploadsCreate.stagedTargets[0];
+}
+
+// Upload the binary to Shopify’s staged target
+async function uploadBinaryToShopify(target, file) {
+    const form = new FormData();
+
+    // Required AWS S3 fields
+    for (const param of target.parameters) {
+        form.append(param.name, param.value);
+    }
+
+    // Actual file
+    form.append("file", file.buffer, {
+        filename: file.originalname,
+        contentType: file.mimetype
+    });
+
+    const res = await fetch(target.url, {
+        method: "POST",
+        body: form
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        console.error("Staged upload to Shopify S3 failed:", res.status, text);
+        throw new Error("Staged S3 upload failed");
+    }
+}
+
+// Final step: convert staged upload to permanent Shopify File asset
+async function finalizeShopifyFile(resourceUrl, filename) {
+    const query = `
+    mutation fileCreate($files: [FileCreateInput!]!) {
+      fileCreate(files: $files) {
+        files {
+          id
+          fileStatus
+          preview { image { url } }
+        }
+        userErrors { field message }
+      }
+    }
+  `;
+
+    const variables = {
+        files: [{
+            originalSource: resourceUrl,
+            filename
+        }]
+    };
+
+    const data = await shopifyGraphQL(query, variables);
+    const file = data.fileCreate.files[0];
+
+    return {
+        id: file.id,
+        status: file.fileStatus,
+        url: file.preview?.image?.url || null
+    };
+}
+
+
+// =====================================================================
+// 🔥 FINAL ROUTE: /api/producer/upload-images
+// =====================================================================
+app.post('/api/producer/upload-images', upload.array('files'), async (req, res) => {
+    const files = req.files;
+    if (!files || !files.length) {
+        return res.status(400).json({ error: "No files uploaded" });
+    }
+
+    try {
+        const results = [];
+
+        for (const file of files) {
+            const stagedTarget = await createStagedUpload(file);
+            await uploadBinaryToShopify(stagedTarget, file);
+            const finalFile = await finalizeShopifyFile(stagedTarget.resourceUrl, file.originalname);
+
+            results.push({
+                originalName: file.originalname,
+                shopifyId: finalFile.id,
+                url: finalFile.url,
+                status: finalFile.status
+            });
+        }
+
+        res.json({ ok: true, files: results });
+
+    } catch (err) {
+        console.error("Error in /upload-images:", err);
+        res.status(500).json({ error: "Failed to upload files", details: err.message });
+    }
 });
+
 
 // -----------------------------------------------------------------------------
 // Save a new Gram from Producer UI
@@ -200,6 +270,32 @@ app.post('/api/producer/grams', async (req, res) => {
     return res.status(500).json({ error: 'Failed to save Gram', details: String(err.message || err) });
   }
 });
+
+// Get next Gram ID (e.g. G001 → G002) based on existing records in Supabase
+app.get('/api/producer/next-id', async (req, res) => {
+    try {
+        const grams = await db.getAllGrams(); // SupabaseDB method
+
+        let maxNum = 0;
+        for (const g of grams) {
+            if (!g.id) continue;
+            const m = /^G(\d+)$/.exec(g.id);
+            if (m) {
+                const n = parseInt(m[1], 10);
+                if (n > maxNum) maxNum = n;
+            }
+        }
+
+        const nextNumber = maxNum + 1;
+        const nextId = 'G' + String(nextNumber).padStart(3, '0');
+
+        res.json({ id: nextId });
+    } catch (err) {
+        console.error('Error computing next Gram ID:', err);
+        res.status(500).json({ error: 'Failed to compute next ID' });
+    }
+});
+
 
 // -----------------------------------------------------------------------------
 // Claim a Gram for a given owner (customer)

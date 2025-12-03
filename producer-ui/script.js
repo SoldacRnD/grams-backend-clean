@@ -2,7 +2,7 @@ const SHOP_DOMAIN = 'https://www.soldacstudio.com';   // adjust if needed
 const BACKEND_BASE = window.location.origin;
 
 let currentPerks = [];
-let lastUploaded = [];  // { originalName, url }
+let lastUploaded = [];  // { originalName, shopifyId?, url, status? }
 
 function slugify(input) {
     return input
@@ -10,6 +10,28 @@ function slugify(input) {
         .trim()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "");
+}
+
+function prettyTitleFromFilename(name) {
+    // Remove extension and turn dashes/underscores into spaces
+    const base = name.replace(/\.[a-z0-9]+$/i, '');
+    return base
+        .replace(/[_\-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+async function fetchNextId() {
+    try {
+        const res = await fetch(`${BACKEND_BASE}/api/producer/next-id`);
+        if (!res.ok) return null;
+        const data = await res.json().catch(() => ({}));
+        return data.id || null;
+    } catch (e) {
+        console.error('Error fetching next ID:', e);
+        return null;
+    }
 }
 
 function renderPerks() {
@@ -24,7 +46,7 @@ function renderPerks() {
     list.innerHTML = currentPerks.map(p => {
         return `<div class="perk-item">
       ${p.business_name || p.business_id} – ${p.type}
-      ${p.metadata && p.metadata.discount_percent ? `(${p.metadata.discount_percent}% off)` : ""}
+      ${p.metadata && p.metadata.discount_percent ? ` (${p.metadata.discount_percent}% off)` : ""}
       [cooldown: ${p.cooldown_seconds}s]
     </div>`;
     }).join("");
@@ -43,16 +65,31 @@ function renderUploaded() {
         return `<div class="uploaded-item" data-idx="${idx}">
       <strong>${f.originalName}</strong>
       <span>${f.url}</span>
-      <em>Click to use as image URL</em>
+      <em>Click to use this image</em>
     </div>`;
     }).join("");
 
     container.querySelectorAll(".uploaded-item").forEach(el => {
-        el.onclick = () => {
+        el.onclick = async () => {
             const idx = parseInt(el.getAttribute("data-idx"), 10);
             const f = lastUploaded[idx];
+
             const imageInput = document.getElementById("image");
+            const titleInput = document.getElementById("title");
+            const idInput = document.getElementById("id");
+
             if (imageInput) imageInput.value = f.url;
+
+            // Suggest a title if empty
+            if (titleInput && !titleInput.value) {
+                titleInput.value = prettyTitleFromFilename(f.originalName);
+            }
+
+            // Auto-fill ID if empty
+            if (idInput && !idInput.value) {
+                const nextId = await fetchNextId();
+                if (nextId) idInput.value = nextId;
+            }
         };
     });
 }
@@ -67,17 +104,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveBtn = document.getElementById("save");
     const copyBtn = document.getElementById("copy");
 
-    if (!uploadBtn || !fileInput) {
-        console.error('Upload elements not found in DOM');
-    }
-
-    // Handle image upload to Shopify
-    if (uploadBtn) {
+    // Handle image upload to Shopify (via new GraphQL-based backend route)
+    if (uploadBtn && fileInput) {
         uploadBtn.onclick = async () => {
-            console.log('Upload button clicked');
             const files = fileInput.files;
-            console.log('Files selected:', files ? files.length : 0);
-
             if (!files || !files.length) {
                 alert("Select at least one image file first");
                 return;
@@ -89,23 +119,22 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             try {
-                console.log('Sending upload request to', `${BACKEND_BASE}/api/producer/upload-images`);
                 const res = await fetch(`${BACKEND_BASE}/api/producer/upload-images`, {
                     method: 'POST',
                     body: formData
                 });
 
                 const data = await res.json().catch(() => ({}));
-                console.log('Upload response status:', res.status, 'data:', data);
+                console.log('Upload response:', res.status, data);
 
-                if (!res.ok) {
+                if (!res.ok || !data.files) {
                     alert('Failed to upload images: ' + (data.error || res.status));
                     return;
                 }
 
-                lastUploaded = data.files || [];
+                lastUploaded = data.files;
                 renderUploaded();
-                alert('Uploaded to Shopify. Click an item below to use its URL.');
+                alert('Uploaded to Shopify. Click an item below to use its image URL.');
             } catch (err) {
                 console.error('Upload error:', err);
                 alert('Error uploading images to backend.');
@@ -147,17 +176,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Generate Gram JSON and URLs
     if (generateBtn) {
-        generateBtn.onclick = () => {
-            const id = document.getElementById("id").value.trim();
-            const title = document.getElementById("title").value.trim();
-            const image = document.getElementById("image").value.trim();
-            const desc = document.getElementById("desc").value.trim();
-            const frame = document.getElementById("frame").value;
-            const glow = document.getElementById("glow").checked;
+        generateBtn.onclick = async () => {
+            const idInput = document.getElementById("id");
+            const titleInput = document.getElementById("title");
+            const imageInput = document.getElementById("image");
+            const descInput = document.getElementById("desc");
+            const frameSelect = document.getElementById("frame");
+            const glowCheckbox = document.getElementById("glow");
 
-            if (!id || !title || !image) {
-                alert("ID, Title and Image URL are required");
+            let id = idInput.value.trim();
+            const title = titleInput.value.trim();
+            const image = imageInput.value.trim();
+            const desc = descInput.value.trim();
+            const frame = frameSelect.value;
+            const glow = glowCheckbox.checked;
+
+            if (!title || !image) {
+                alert("Title and Image URL are required");
                 return;
+            }
+
+            // Auto-generate ID if missing
+            if (!id) {
+                const nextId = await fetchNextId();
+                if (nextId) {
+                    id = nextId;
+                    idInput.value = nextId;
+                } else {
+                    alert("Could not fetch next ID from backend");
+                    return;
+                }
             }
 
             const slug = slugify(title);
@@ -210,7 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // Save Gram to backend
+    // Save Gram to backend (Supabase via /api/producer/grams)
     if (saveBtn) {
         saveBtn.onclick = async () => {
             const jsonText = document.getElementById("json").value;
@@ -242,7 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                alert('Gram saved to backend (grams.json) successfully.');
+                alert('Gram saved to backend (Supabase) successfully.');
             } catch (err) {
                 console.error('Save error:', err);
                 alert('Error saving Gram to backend.');

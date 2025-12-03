@@ -30,7 +30,15 @@
             <label>Title</label>
             <input id="title" type="text" placeholder="Blue Cat #2" />
 
-            <label>Image URL (from Shopify Files)</label>
+            <label>Image File</label>
+            <input type="file" id="imageFile" accept="image/*" />
+            <button id="uploadImageBtn">Upload to Shopify</button>
+
+            <p id="imageUploadStatus"></p>
+
+            <label>Image URL (auto after upload)</label>
+            <input type="text" id="imageUrl" readonly />
+
             <input id="image" type="text" placeholder="Paste or click one of the uploaded URLs below" />
 
             <label>Description</label>
