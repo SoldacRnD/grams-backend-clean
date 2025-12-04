@@ -58,6 +58,20 @@ class SupabaseDB {
 
     return data;
   }
+    async updateGram(id, partial) {
+        const { data, error } = await this.client
+            .from('grams')
+            .update(partial)
+            .eq('id', id)
+            .select('*')
+            .single();
+
+        if (error) {
+            console.error('updateGram error:', error);
+            throw error;
+        }
+        return data;
+    }
 
   async addPerk(gramId, perk) {
     // Read existing perks

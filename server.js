@@ -317,38 +317,59 @@ app.post('/api/producer/upload-images', upload.array('files'), async (req, res) 
 // Save a new Gram from Producer UI
 // -----------------------------------------------------------------------------
 app.post('/api/producer/grams', async (req, res) => {
-  const gram = req.body;
-  console.log('Incoming Gram from Producer UI:', gram);
+    const gram = req.body;
+    console.log('Incoming Gram from Producer UI:', gram);
 
-  if (!gram || !gram.id || !gram.slug || !gram.nfc_tag_id || !gram.title || !gram.image_url) {
-    console.error('Missing required Gram fields');
-    return res.status(400).json({ error: 'Missing required Gram fields' });
-  }
-
-  try {
-    const created = await db.createGram({
-      id: gram.id,
-      slug: gram.slug,
-      nfc_tag_id: gram.nfc_tag_id,
-      title: gram.title,
-      image_url: gram.image_url,
-      description: gram.description || '',
-      effects: gram.effects || {},
-      owner_id: gram.owner_id || null,
-      perks: Array.isArray(gram.perks) ? gram.perks : []
-    });
-
-    if (gram.owner_id) {
-      await db.setOwner(created.id, String(gram.owner_id));
+    if (!gram || !gram.id || !gram.slug || !gram.nfc_tag_id || !gram.title || !gram.image_url) {
+        console.error('Missing required Gram fields');
+        return res.status(400).json({ error: 'Missing required Gram fields' });
     }
 
-    console.log('Gram saved OK:', created.id);
-    return res.json({ ok: true, gram: created });
-  } catch (err) {
-    console.error('Error saving Gram:', err);
-    return res.status(500).json({ error: 'Failed to save Gram', details: String(err.message || err) });
-  }
+    try {
+        // Check if gram already exists
+        const existing = await db.getGramById(gram.id);
+
+        let saved;
+
+        if (existing) {
+            // UPDATE MODE – do NOT touch owner_id here, keep whoever owns it
+            saved = await db.updateGram(gram.id, {
+                slug: gram.slug,
+                nfc_tag_id: gram.nfc_tag_id,
+                title: gram.title,
+                image_url: gram.image_url,
+                description: gram.description || '',
+                effects: gram.effects || {},
+                perks: Array.isArray(gram.perks) ? gram.perks : existing.perks
+                // owner_id stays as in existing row
+            });
+            console.log('Gram updated OK:', saved.id);
+        } else {
+            // CREATE MODE
+            saved = await db.createGram({
+                id: gram.id,
+                slug: gram.slug,
+                nfc_tag_id: gram.nfc_tag_id,
+                title: gram.title,
+                image_url: gram.image_url,
+                description: gram.description || '',
+                effects: gram.effects || {},
+                owner_id: gram.owner_id || null,   // usually null from Producer
+                perks: Array.isArray(gram.perks) ? gram.perks : []
+            });
+            console.log('Gram created OK:', saved.id);
+        }
+
+        // IMPORTANT: Producer should not change owner, so we remove any setOwner here
+        // (all ownership changes go through /api/grams/claim)
+
+        return res.json({ ok: true, gram: saved });
+    } catch (err) {
+        console.error('Error saving Gram:', err);
+        return res.status(500).json({ error: 'Failed to save Gram', details: String(err.message || err) });
+    }
 });
+
 
 // Get next Gram ID (e.g. G001 → G002) based on existing records in Supabase
 app.get('/api/producer/next-id', async (req, res) => {
