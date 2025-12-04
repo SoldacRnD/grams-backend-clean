@@ -89,11 +89,18 @@ function renderUploaded() {
     container.innerHTML = lastUploaded.map((f, idx) => {
         const urlText = f.url || '(no URL yet)';
         const selectedClass = idx === currentImageIndex ? 'selected' : '';
-        return `<div class="uploaded-item ${selectedClass}" data-idx="${idx}">
-      <strong>${f.originalName}</strong>
-      <span class="url">${urlText}</span>
-      <em>Click to use this image</em>
-    </div>`;
+        const imgHtml = f.url
+            ? `<img src="${f.url}" alt="${f.originalName}" class="uploaded-thumb">`
+            : '';
+
+        return `
+      <div class="uploaded-item ${selectedClass}" data-idx="${idx}">
+        ${imgHtml}
+        <strong>${f.originalName}</strong>
+        <span class="url">${urlText}</span>
+        <em>Click to use this image</em>
+      </div>
+    `;
     }).join("");
 
     container.querySelectorAll(".uploaded-item").forEach(el => {
@@ -109,14 +116,11 @@ function renderUploaded() {
             const titleInput = document.getElementById("title");
             const idInput = document.getElementById("id");
 
-            if (imageInput) {
-                if (f.url) {
-                    imageInput.value = f.url;
-                } else {
-                    imageInput.placeholder = "CDN URL not ready yet – re-upload later or paste from Shopify Files.";
-                }
+            if (imageInput && f.url) {
+                imageInput.value = f.url;
+            } else if (!f.url) {
+                imageInput.placeholder = "CDN URL not ready yet – re-upload later or paste from Shopify Files.";
             }
-
 
             if (titleInput && !titleInput.value) {
                 titleInput.value = prettyTitleFromFilename(f.originalName);
@@ -133,6 +137,7 @@ function renderUploaded() {
         statusEl.textContent = "Uploaded " + lastUploaded.length + " image(s). Click one to edit.";
     }
 }
+
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Producer UI loaded, backend base =', BACKEND_BASE);
