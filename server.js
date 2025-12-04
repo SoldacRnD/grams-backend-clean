@@ -342,12 +342,6 @@ app.post('/api/producer/grams', async (req, res) => {
       await db.setOwner(created.id, String(gram.owner_id));
     }
 
-    if (Array.isArray(gram.perks)) {
-      for (const p of gram.perks) {
-        await db.addPerk(created.id, p);
-      }
-    }
-
     console.log('Gram saved OK:', created.id);
     return res.json({ ok: true, gram: created });
   } catch (err) {

@@ -43,16 +43,37 @@ function renderPerks() {
         return;
     }
 
-    list.innerHTML = currentPerks.map(p => {
+    list.innerHTML = currentPerks.map((p, idx) => {
         const discount = p.metadata && p.metadata.discount_percent
             ? ` (${p.metadata.discount_percent}% off)`
             : "";
-        return `<div class="perk-item">
-      ${p.business_name || p.business_id} – ${p.type}${discount}
-      <span class="cooldown">cooldown: ${p.cooldown_seconds || 0}s</span>
-    </div>`;
+        const item = p.type === 'free_item' && p.metadata && p.metadata.item_name
+            ? ` – item: ${p.metadata.item_name}`
+            : "";
+        return `
+      <div class="perk-item" data-idx="${idx}">
+        <strong>${p.business_name || p.business_id}</strong>
+        &nbsp;– ${p.type}${discount}${item}
+        <span class="cooldown">cooldown: ${p.cooldown_seconds || 0}s</span>
+        <button type="button" class="remove-perk">✕</button>
+      </div>
+    `;
     }).join("");
+
+    // Wire up remove buttons
+    list.querySelectorAll(".remove-perk").forEach(btn => {
+        btn.onclick = () => {
+            const parent = btn.closest('.perk-item');
+            if (!parent) return;
+            const idx = parseInt(parent.getAttribute('data-idx'), 10);
+            if (!isNaN(idx)) {
+                currentPerks.splice(idx, 1);
+                renderPerks();
+            }
+        };
+    });
 }
+
 
 function renderUploaded() {
     const container = document.getElementById("uploaded-list");
@@ -189,6 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const businessName = document.getElementById("perk-business-name").value.trim();
             const type = document.getElementById("perk-type").value;
             const discountStr = document.getElementById("perk-discount").value.trim();
+            const itemStr = document.getElementById("perk-item").value.trim();
             const cooldownStr = document.getElementById("perk-cooldown").value.trim();
 
             if (!businessId) {
@@ -209,10 +231,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 perk.metadata.discount_percent = parseInt(discountStr, 10);
             }
 
+            if (type === "free_item" && itemStr) {
+                perk.metadata.item_name = itemStr;
+            }
+
             currentPerks.push(perk);
             renderPerks();
+
+            // Optional: clear perk form inputs after add
+            document.getElementById("perk-business-id").value = "";
+            document.getElementById("perk-business-name").value = "";
+            document.getElementById("perk-discount").value = "";
+            document.getElementById("perk-item").value = "";
+            document.getElementById("perk-cooldown").value = "";
         };
     }
+
 
     // Generate Gram JSON & URLs
     if (generateBtn) {
