@@ -351,8 +351,7 @@ app.get('/api/producer/grams/by-image', async (req, res) => {
 });
 
 // -----------------------------------------------------------------------------
-// Save a new Gram from Producer UI
-// -----------------------------------------------------------------------------
+// Save or update a Gram from Producer UI
 app.post('/api/producer/grams', async (req, res) => {
     const gram = req.body;
     console.log('Incoming Gram from Producer UI:', gram);
@@ -363,27 +362,35 @@ app.post('/api/producer/grams', async (req, res) => {
     }
 
     try {
-        // Check if gram already exists
+        // Ensure perks is always an array (or empty)
+        const incomingPerks = Array.isArray(gram.perks) ? gram.perks : [];
+
+        // 1) Check if Gram already exists
         const existing = await db.getGramById(gram.id);
+        console.log('Existing gram for id', gram.id, ':', existing ? 'YES' : 'NO');
 
         let saved;
 
         if (existing) {
-            // UPDATE MODE – do NOT touch owner_id here, keep whoever owns it
-            saved = await db.updateGram(gram.id, {
+            // --- UPDATE MODE ---
+            // Do NOT touch owner_id here; keep current owner
+            const updatePayload = {
                 slug: gram.slug,
                 nfc_tag_id: gram.nfc_tag_id,
                 title: gram.title,
                 image_url: gram.image_url,
                 description: gram.description || '',
                 effects: gram.effects || {},
-                perks: Array.isArray(gram.perks) ? gram.perks : existing.perks
-                // owner_id stays as in existing row
-            });
+                perks: incomingPerks.length ? incomingPerks : []  // overwrite perks
+            };
+
+            console.log('Updating gram with payload:', updatePayload);
+
+            saved = await db.updateGram(gram.id, updatePayload);
             console.log('Gram updated OK:', saved.id);
         } else {
-            // CREATE MODE
-            saved = await db.createGram({
+            // --- CREATE MODE ---
+            const createPayload = {
                 id: gram.id,
                 slug: gram.slug,
                 nfc_tag_id: gram.nfc_tag_id,
@@ -391,21 +398,27 @@ app.post('/api/producer/grams', async (req, res) => {
                 image_url: gram.image_url,
                 description: gram.description || '',
                 effects: gram.effects || {},
-                owner_id: gram.owner_id || null,   // usually null from Producer
-                perks: Array.isArray(gram.perks) ? gram.perks : []
-            });
+                owner_id: gram.owner_id || null, // usually null from Producer
+                perks: incomingPerks
+            };
+
+            console.log('Creating gram with payload:', createPayload);
+
+            saved = await db.createGram(createPayload);
             console.log('Gram created OK:', saved.id);
         }
-
-        // IMPORTANT: Producer should not change owner, so we remove any setOwner here
-        // (all ownership changes go through /api/grams/claim)
 
         return res.json({ ok: true, gram: saved });
     } catch (err) {
         console.error('Error saving Gram:', err);
-        return res.status(500).json({ error: 'Failed to save Gram', details: String(err.message || err) });
+        // Try to give the frontend more useful info
+        return res.status(500).json({
+            error: 'Failed to save Gram',
+            details: err.message || String(err)
+        });
     }
 });
+
 
 
 // Get next Gram ID (e.g. G001 → G002) based on existing records in Supabase

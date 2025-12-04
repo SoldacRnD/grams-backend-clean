@@ -41,7 +41,62 @@ class SupabaseDB {
     }
 
     return inserted;
-  }
+    }
+    class SupabaseDB {
+    constructor() {
+        // however you init, e.g.:
+        // this.client = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+    }
+
+    async getGramById(id) {
+        const { data, error } = await this.client
+            .from('grams')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') { // 116 = no rows found (safe to ignore)
+            console.error('getGramById error:', error);
+            throw error;
+        }
+
+        return data || null;
+    }
+
+    async createGram(payload) {
+        const { data, error } = await this.client
+            .from('grams')
+            .insert(payload)
+            .select('*')
+            .single();
+
+        if (error) {
+            console.error('createGram error:', error);
+            throw error;
+        }
+
+        return data;
+    }
+
+    async updateGram(id, partial) {
+        const { data, error } = await this.client
+            .from('grams')
+            .update(partial)
+            .eq('id', id)
+            .select('*')
+            .single();
+
+        if (error) {
+            console.error('updateGram error:', error);
+            throw error;
+        }
+
+        return data;
+    }
+
+    // ... other methods (getGramsByOwner, getGramBySlug, getGramByTag, setOwner, etc.)
+}
+
 async getGramByImageUrl(imageUrl) {
   const { data, error } = await this.client
     .from('grams')
