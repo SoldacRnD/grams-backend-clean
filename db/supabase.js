@@ -42,6 +42,20 @@ class SupabaseDB {
 
     return inserted;
   }
+async getGramByImageUrl(imageUrl) {
+  const { data, error } = await this.client
+    .from('grams')
+    .select('*')
+    .eq('image_url', imageUrl)
+    .maybeSingle();
+
+  if (error && error.code !== 'PGRST116') { // 116 = no rows (PostgREST)
+    console.error('getGramByImageUrl error:', error);
+    throw error;
+  }
+
+  return data || null;
+}
 
   async setOwner(gramId, ownerId) {
     const { data, error } = await supabase
@@ -179,6 +193,20 @@ class SupabaseDB {
 
     return data;
   }
+    async getGramByImageUrl(imageUrl) {
+        const { data, error } = await this.client
+            .from('grams')
+            .select('*')
+            .eq('image_url', imageUrl)
+            .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') { // 116 = no rows (PostgREST)
+            console.error('getGramByImageUrl error:', error);
+            throw error;
+        }
+
+        return data || null;
+    }
 
   async getAllGrams() {
     const { data, error } = await supabase

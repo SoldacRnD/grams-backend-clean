@@ -92,16 +92,21 @@ function renderUploaded() {
         const imgHtml = f.url
             ? `<img src="${f.url}" alt="${f.originalName}" class="uploaded-thumb">`
             : '';
+        const badge = f.saved ? '<span class="badge-saved">Saved</span>' : '';
 
         return `
       <div class="uploaded-item ${selectedClass}" data-idx="${idx}">
         ${imgHtml}
-        <strong>${f.originalName}</strong>
+        <div class="uploaded-header">
+          <strong>${f.originalName}</strong>
+          ${badge}
+        </div>
         <span class="url">${urlText}</span>
         <em>Click to use this image</em>
       </div>
     `;
     }).join("");
+
 
     container.querySelectorAll(".uploaded-item").forEach(el => {
         el.onclick = async () => {
@@ -137,6 +142,23 @@ function renderUploaded() {
         statusEl.textContent = "Uploaded " + lastUploaded.length + " image(s). Click one to edit.";
     }
 }
+async function refreshSavedStatusForUploads() {
+    for (const f of lastUploaded) {
+        if (!f.url) continue;
+        try {
+            const res = await fetch(
+                `${BACKEND_BASE}/api/producer/grams/by-image?imageUrl=` +
+                encodeURIComponent(f.url)
+            );
+            if (res.ok) {
+                // If we get a gram back, mark this file as saved
+                f.saved = true;
+            }
+        } catch (e) {
+            console.error('Error checking saved status for', f.url, e);
+        }
+    }
+}
 
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -149,6 +171,97 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveBtn = document.getElementById("save");
     const copyBtn = document.getElementById("copy");
     const statusEl = document.getElementById("upload-status");
+
+    const loadBtn = document.getElementById("load-gram");
+
+    if (loadBtn) {
+        loadBtn.onclick = async () => {
+            const idVal = document.getElementById("load-id").value.trim();
+            const slugVal = document.getElementById("load-slug").value.trim();
+
+            if (!idVal && !slugVal) {
+                alert("Enter an ID or a slug");
+                return;
+            }
+
+            try {
+                let gram;
+
+                if (idVal) {
+                    const res = await fetch(
+                        `${BACKEND_BASE}/api/producer/grams/by-id/` +
+                        encodeURIComponent(idVal)
+                    );
+                    if (!res.ok) {
+                        alert("Gram not found by ID");
+                        return;
+                    }
+                    gram = await res.json();
+                } else {
+                    // Use public slug endpoint
+                    const res = await fetch(
+                        `${BACKEND_BASE}/api/grams/by-slug/` +
+                        encodeURIComponent(slugVal)
+                    );
+                    if (!res.ok) {
+                        alert("Gram not found by slug");
+                        return;
+                    }
+                    gram = await res.json();
+                }
+
+                console.log('Loaded gram into Producer:', gram);
+
+                // Fill main form
+                document.getElementById("id").value = gram.id || "";
+                document.getElementById("title").value = gram.title || "";
+                document.getElementById("image").value = gram.image_url || "";
+                document.getElementById("desc").value = gram.description || "";
+
+                const frameSelect = document.getElementById("frame");
+                const glowCheckbox = document.getElementById("glow");
+                if (frameSelect) {
+                    frameSelect.value = (gram.effects && gram.effects.frame) || "none";
+                }
+                if (glowCheckbox) {
+                    glowCheckbox.checked = !!(gram.effects && gram.effects.glow);
+                }
+
+                // Output fields
+                document.getElementById("slug").value = gram.slug || "";
+                document.getElementById("nfc").value = gram.nfc_tag_id || "";
+                document.getElementById("share").value = gram.slug
+                    ? `${SHOP_DOMAIN}/pages/gram?slug=${gram.slug}`
+                    : "";
+                document.getElementById("nfcurl").value = gram.nfc_tag_id
+                    ? `${SHOP_DOMAIN}/pages/gram?tag=${gram.nfc_tag_id}`
+                    : "";
+
+                // Perks
+                currentPerks = Array.isArray(gram.perks) ? gram.perks : [];
+                renderPerks();
+
+                // JSON preview (with owner preserved)
+                const gramForJson = {
+                    id: gram.id,
+                    slug: gram.slug,
+                    nfc_tag_id: gram.nfc_tag_id,
+                    title: gram.title,
+                    image_url: gram.image_url,
+                    description: gram.description,
+                    effects: gram.effects || {},
+                    owner_id: gram.owner_id || null,
+                    perks: currentPerks
+                };
+                document.getElementById("json").value =
+                    JSON.stringify(gramForJson, null, 2);
+            } catch (e) {
+                console.error("Error loading gram:", e);
+                alert("Error loading Gram");
+            }
+        };
+    }
+
 
     // Upload images to Shopify
     if (uploadBtn && fileInput) {
@@ -179,8 +292,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                lastUploaded = data.files;
+                // Initialize with saved: false
+                lastUploaded = data.files.map(f => ({
+                    ...f,
+                    saved: false
+                }));
+
                 currentImageIndex = lastUploaded.length ? 0 : -1;
+
+                // Check which ones already have grams in Supabase
+                await refreshSavedStatusForUploads();
+
                 renderUploaded();
 
                 // Auto-select first image
@@ -199,6 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (nextId) idInput.value = nextId;
                     }
                 }
+
 
             } catch (err) {
                 console.error('Upload error:', err);

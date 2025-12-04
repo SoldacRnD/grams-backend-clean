@@ -313,6 +313,43 @@ app.post('/api/producer/upload-images', upload.array('files'), async (req, res) 
 
 });
 
+app.get('/api/producer/grams/by-id/:id', async (req, res) => {
+    const id = req.params.id;
+    if (!id) {
+        return res.status(400).json({ error: 'id is required' });
+    }
+
+    try {
+        const gram = await db.getGramById(id);
+        if (!gram) {
+            return res.status(404).json({ error: 'Gram not found' });
+        }
+        return res.json(gram);
+    } catch (err) {
+        console.error('Error fetching gram by id:', err);
+        return res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Check if a Gram already exists for a given image_url
+app.get('/api/producer/grams/by-image', async (req, res) => {
+    const imageUrl = req.query.imageUrl;
+    if (!imageUrl) {
+        return res.status(400).json({ error: 'imageUrl query param is required' });
+    }
+
+    try {
+        const gram = await db.getGramByImageUrl(imageUrl);
+        if (!gram) {
+            return res.status(404).json({ error: 'No gram for this image' });
+        }
+        return res.json(gram);
+    } catch (err) {
+        console.error('Error fetching gram by imageUrl:', err);
+        return res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // -----------------------------------------------------------------------------
 // Save a new Gram from Producer UI
 // -----------------------------------------------------------------------------
