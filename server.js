@@ -182,8 +182,13 @@ async function fetchMediaImageUrlById(fileId) {
     const query = `
     query fileById($id: ID!) {
       node(id: $id) {
-        ... on File {
-          fileStatus
+        ... on MediaImage {
+          image {
+            url
+          }
+        }
+        ... on GenericFile {
+          url
           preview {
             image { url }
           }
@@ -198,11 +203,22 @@ async function fetchMediaImageUrlById(fileId) {
         return { status: null, url: null };
     }
 
-    return {
-        status: node.fileStatus,
-        url: node.preview && node.preview.image ? node.preview.image.url : null
-    };
+    // Prefer direct image url if present (MediaImage)
+    if (node.image && node.image.url) {
+        return { status: null, url: node.image.url };
+    }
+
+    // GenericFile might have url or preview.image.url
+    if (node.url) {
+        return { status: null, url: node.url };
+    }
+    if (node.preview && node.preview.image && node.preview.image.url) {
+        return { status: null, url: node.preview.image.url };
+    }
+
+    return { status: null, url: null };
 }
+
 
 
 // --- 3) Create permanent File and try to get its CDN URL ---
@@ -234,31 +250,34 @@ async function finalizeShopifyFile(resourceUrl, filename) {
     const errs = data.fileCreate.userErrors || [];
     if (errs.length) {
         console.error('fileCreate userErrors:', errs);
-        throw new Error('fileCreate failed');
+        throw new Error('fileCreate failed: ' + JSON.stringify(errs));
     }
 
     const f = data.fileCreate.files[0];
 
     let id = f.id;
     let status = f.fileStatus;
-    // 🔑 URL now read from preview.image.url
     let url = (f.preview && f.preview.image && f.preview.image.url) || null;
 
-    // If still not READY or no URL yet, poll a couple of times
-    if (!url || status !== 'READY') {
-        for (let i = 0; i < 3; i++) {
-            await new Promise(r => setTimeout(r, 500)); // wait 0.5s
+    // If no URL yet, poll Shopify a bit to let processing finish
+    if (!url) {
+        for (let i = 0; i < 10; i++) {   // up to ~10 seconds total
+            await new Promise(r => setTimeout(r, 1000));
             const info = await fetchMediaImageUrlById(id);
             if (info.url) {
                 url = info.url;
-                status = info.status || status;
                 break;
             }
         }
     }
 
+    if (!url) {
+        console.warn('No CDN URL for file id', id, 'after polling. Status:', status);
+    }
+
     return { id, status, url };
 }
+
 
 
 // =====================================================================

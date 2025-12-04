@@ -88,11 +88,14 @@ function renderUploaded() {
             const titleInput = document.getElementById("title");
             const idInput = document.getElementById("id");
 
-            if (imageInput && f.url) {
-                imageInput.value = f.url;
-            } else if (!f.url) {
-                alert("This image does not yet have a CDN URL from Shopify. Try re-uploading or wait a bit.");
+            if (imageInput) {
+                if (f.url) {
+                    imageInput.value = f.url;
+                } else {
+                    imageInput.placeholder = "CDN URL not ready yet – re-upload later or paste from Shopify Files.";
+                }
             }
+
 
             if (titleInput && !titleInput.value) {
                 titleInput.value = prettyTitleFromFilename(f.originalName);
