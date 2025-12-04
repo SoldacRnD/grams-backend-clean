@@ -42,12 +42,6 @@ class SupabaseDB {
 
     return inserted;
     }
-    class SupabaseDB {
-    constructor() {
-        // however you init, e.g.:
-        // this.client = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-    }
-
     async getGramById(id) {
         const { data, error } = await this.client
             .from('grams')
@@ -93,10 +87,6 @@ class SupabaseDB {
 
         return data;
     }
-
-    // ... other methods (getGramsByOwner, getGramBySlug, getGramByTag, setOwner, etc.)
-}
-
 async getGramByImageUrl(imageUrl) {
   const { data, error } = await this.client
     .from('grams')
