@@ -2,7 +2,8 @@ const SHOP_DOMAIN = 'https://www.soldacstudio.com';   // adjust if needed
 const BACKEND_BASE = window.location.origin;
 
 let currentPerks = [];
-let lastUploaded = [];  // { originalName, shopifyId?, url, status? }
+let lastUploaded = [];  // { originalName, shopifyId, url, status }
+let currentImageIndex = -1;
 
 function slugify(input) {
     return input
@@ -13,7 +14,6 @@ function slugify(input) {
 }
 
 function prettyTitleFromFilename(name) {
-    // Remove extension and turn dashes/underscores into spaces
     const base = name.replace(/\.[a-z0-9]+$/i, '');
     return base
         .replace(/[_\-]+/g, ' ')
@@ -38,33 +38,39 @@ function renderPerks() {
     const list = document.getElementById("perks-list");
     if (!list) return;
 
-    if (currentPerks.length === 0) {
+    if (!currentPerks.length) {
         list.innerHTML = "<p>No perks added.</p>";
         return;
     }
 
     list.innerHTML = currentPerks.map(p => {
+        const discount = p.metadata && p.metadata.discount_percent
+            ? ` (${p.metadata.discount_percent}% off)`
+            : "";
         return `<div class="perk-item">
-      ${p.business_name || p.business_id} – ${p.type}
-      ${p.metadata && p.metadata.discount_percent ? ` (${p.metadata.discount_percent}% off)` : ""}
-      [cooldown: ${p.cooldown_seconds}s]
+      ${p.business_name || p.business_id} – ${p.type}${discount}
+      <span class="cooldown">cooldown: ${p.cooldown_seconds || 0}s</span>
     </div>`;
     }).join("");
 }
 
 function renderUploaded() {
     const container = document.getElementById("uploaded-list");
+    const statusEl = document.getElementById("upload-status");
     if (!container) return;
 
     if (!lastUploaded.length) {
         container.innerHTML = "<p>No images uploaded yet.</p>";
+        if (statusEl) statusEl.textContent = "";
         return;
     }
 
     container.innerHTML = lastUploaded.map((f, idx) => {
-        return `<div class="uploaded-item" data-idx="${idx}">
+        const urlText = f.url || '(no URL yet)';
+        const selectedClass = idx === currentImageIndex ? 'selected' : '';
+        return `<div class="uploaded-item ${selectedClass}" data-idx="${idx}">
       <strong>${f.originalName}</strong>
-      <span>${f.url}</span>
+      <span class="url">${urlText}</span>
       <em>Click to use this image</em>
     </div>`;
     }).join("");
@@ -72,39 +78,50 @@ function renderUploaded() {
     container.querySelectorAll(".uploaded-item").forEach(el => {
         el.onclick = async () => {
             const idx = parseInt(el.getAttribute("data-idx"), 10);
+            currentImageIndex = idx;
             const f = lastUploaded[idx];
+
+            // re-render to update selected class
+            renderUploaded();
 
             const imageInput = document.getElementById("image");
             const titleInput = document.getElementById("title");
             const idInput = document.getElementById("id");
 
-            if (imageInput) imageInput.value = f.url;
+            if (imageInput && f.url) {
+                imageInput.value = f.url;
+            } else if (!f.url) {
+                alert("This image does not yet have a CDN URL from Shopify. Try re-uploading or wait a bit.");
+            }
 
-            // Suggest a title if empty
             if (titleInput && !titleInput.value) {
                 titleInput.value = prettyTitleFromFilename(f.originalName);
             }
 
-            // Auto-fill ID if empty
             if (idInput && !idInput.value) {
                 const nextId = await fetchNextId();
                 if (nextId) idInput.value = nextId;
             }
         };
     });
+
+    if (statusEl) {
+        statusEl.textContent = "Uploaded " + lastUploaded.length + " image(s). Click one to edit.";
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Producer UI loaded, backend base =', BACKEND_BASE);
 
-    const uploadBtn = document.getElementById("upload-files");
     const fileInput = document.getElementById("file-input");
+    const uploadBtn = document.getElementById("upload-files");
     const addPerkBtn = document.getElementById("add-perk");
     const generateBtn = document.getElementById("generate");
     const saveBtn = document.getElementById("save");
     const copyBtn = document.getElementById("copy");
+    const statusEl = document.getElementById("upload-status");
 
-    // Handle image upload to Shopify (via new GraphQL-based backend route)
+    // Upload images to Shopify
     if (uploadBtn && fileInput) {
         uploadBtn.onclick = async () => {
             const files = fileInput.files;
@@ -114,9 +131,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const formData = new FormData();
-            Array.from(files).forEach(f => {
-                formData.append('files', f);
-            });
+            Array.from(files).forEach(f => formData.append('files', f));
+
+            if (statusEl) statusEl.textContent = "Uploading…";
 
             try {
                 const res = await fetch(`${BACKEND_BASE}/api/producer/upload-images`, {
@@ -127,22 +144,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await res.json().catch(() => ({}));
                 console.log('Upload response:', res.status, data);
 
-                if (!res.ok || !data.files) {
+                if (!res.ok || !data.ok || !Array.isArray(data.files)) {
                     alert('Failed to upload images: ' + (data.error || res.status));
+                    if (statusEl) statusEl.textContent = "Upload failed.";
                     return;
                 }
 
                 lastUploaded = data.files;
+                currentImageIndex = lastUploaded.length ? 0 : -1;
                 renderUploaded();
-                alert('Uploaded to Shopify. Click an item below to use its image URL.');
+
+                // Auto-select first image
+                if (lastUploaded.length) {
+                    const first = lastUploaded[0];
+                    const imageInput = document.getElementById("image");
+                    const titleInput = document.getElementById("title");
+                    const idInput = document.getElementById("id");
+
+                    if (imageInput && first.url) imageInput.value = first.url;
+                    if (titleInput && !titleInput.value) {
+                        titleInput.value = prettyTitleFromFilename(first.originalName);
+                    }
+                    if (idInput && !idInput.value) {
+                        const nextId = await fetchNextId();
+                        if (nextId) idInput.value = nextId;
+                    }
+                }
+
             } catch (err) {
                 console.error('Upload error:', err);
                 alert('Error uploading images to backend.');
+                if (statusEl) statusEl.textContent = "Upload failed.";
             }
         };
     }
 
-    // Handle adding perks
+    // Add perks
     if (addPerkBtn) {
         addPerkBtn.onclick = () => {
             const businessId = document.getElementById("perk-business-id").value.trim();
@@ -174,7 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // Generate Gram JSON and URLs
+    // Generate Gram JSON & URLs
     if (generateBtn) {
         generateBtn.onclick = async () => {
             const idInput = document.getElementById("id");
@@ -196,16 +233,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Auto-generate ID if missing
             if (!id) {
                 const nextId = await fetchNextId();
-                if (nextId) {
-                    id = nextId;
-                    idInput.value = nextId;
-                } else {
+                if (!nextId) {
                     alert("Could not fetch next ID from backend");
                     return;
                 }
+                id = nextId;
+                idInput.value = nextId;
             }
 
             const slug = slugify(title);
@@ -258,7 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // Save Gram to backend (Supabase via /api/producer/grams)
+    // Save Gram to backend (Supabase)
     if (saveBtn) {
         saveBtn.onclick = async () => {
             const jsonText = document.getElementById("json").value;
@@ -298,7 +333,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // Initial renders
     renderPerks();
     renderUploaded();
 });

@@ -10,105 +10,145 @@
     <h1>Gram Producer Tool</h1>
 
     <div class="container">
+        <!-- LEFT: Image Upload + Gallery -->
+        <aside class="sidebar">
+            <h2>Images</h2>
+            <p>Select one or more image files and upload them to Shopify Files. Then click an image to start configuring its Gram.</p>
 
-        <div class="section">
-            <h2>Input</h2>
+            <label for="file-input">Image files</label>
+            <input id="file-input" type="file" accept="image/*" multiple>
 
-            <h3>Image Upload</h3>
-            <p>Select one or more image files to upload directly to Shopify Files.</p>
-
-            <input id="file-input" type="file" multiple accept="image/*" />
             <button id="upload-files">Upload to Shopify</button>
+            <div id="upload-status" class="status"></div>
 
-            <div id="uploaded-list"></div>
+            <h3>Uploaded images</h3>
+            <div id="uploaded-list" class="uploaded-list"></div>
+        </aside>
 
-            <hr>
+        <!-- RIGHT: Gram editor -->
+        <main class="main">
+            <!-- Input section -->
+            <section class="section">
+                <h2>Gram details</h2>
 
-            <label>ID (e.g. G002)</label>
-            <input id="id" type="text" placeholder="G002" />
+                <div class="field">
+                    <label for="id">ID (e.g. G001)</label>
+                    <input id="id" type="text" placeholder="G001">
+                </div>
 
-            <label>Title</label>
-            <input id="title" type="text" placeholder="Blue Cat #2" />
+                <div class="field">
+                    <label for="title">Title</label>
+                    <input id="title" type="text" placeholder="Blue Cat #2">
+                </div>
 
-            <label>Image File</label>
-            <input type="file" id="imageFile" accept="image/*" />
-            <button id="uploadImageBtn">Upload to Shopify</button>
+                <div class="field">
+                    <label for="image">Image URL (auto after upload)</label>
+                    <input id="image" type="text" placeholder="Click an uploaded image to fill this">
+                </div>
 
-            <p id="imageUploadStatus"></p>
+                <div class="field">
+                    <label for="desc">Description</label>
+                    <input id="desc" type="text" placeholder="Short description">
+                </div>
 
-            <label>Image URL (auto after upload)</label>
-            <input type="text" id="imageUrl" readonly />
+                <div class="field inline">
+                    <div>
+                        <label for="frame">Frame</label>
+                        <select id="frame">
+                            <option value="none">None</option>
+                            <option value="gold">Gold</option>
+                            <option value="black">Black</option>
+                            <option value="neon">Neon</option>
+                        </select>
+                    </div>
+                    <div class="checkbox-field">
+                        <label>
+                            <input id="glow" type="checkbox">
+                            Glow effect
+                        </label>
+                    </div>
+                </div>
+            </section>
 
-            <input id="image" type="text" placeholder="Paste or click one of the uploaded URLs below" />
+            <!-- Perks -->
+            <section class="section">
+                <h2>Perks</h2>
+                <div id="perks-list"></div>
 
-            <label>Description</label>
-            <textarea id="desc" placeholder="Short description"></textarea>
+                <div class="perk-form">
+                    <div class="field">
+                        <label for="perk-business-id">Business ID</label>
+                        <input id="perk-business-id" type="text" placeholder="CAFE57">
+                    </div>
 
-            <label>Frame</label>
-            <select id="frame">
-                <option value="none">None</option>
-                <option value="black">Black</option>
-                <option value="gold">Gold</option>
-            </select>
+                    <div class="field">
+                        <label for="perk-business-name">Business Name</label>
+                        <input id="perk-business-name" type="text" placeholder="Café Blue">
+                    </div>
 
-            <label><input id="glow" type="checkbox"> Glow effect</label>
+                    <div class="field inline">
+                        <div>
+                            <label for="perk-type">Type</label>
+                            <select id="perk-type">
+                                <option value="discount">discount</option>
+                                <option value="free_item">free_item</option>
+                                <option value="access">access</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="perk-discount">Discount % (if discount)</label>
+                            <input id="perk-discount" type="text" placeholder="10">
+                        </div>
+                    </div>
 
-            <hr>
+                    <div class="field">
+                        <label for="perk-cooldown">Cooldown (seconds)</label>
+                        <input id="perk-cooldown" type="text" placeholder="86400">
+                    </div>
 
-            <h3>Perks</h3>
-            <div id="perks-list"></div>
+                    <button id="add-perk">Add Perk</button>
+                </div>
+            </section>
 
-            <div class="perk-form">
-                <label>Business ID</label>
-                <input id="perk-business-id" type="text" placeholder="CAFE57" />
+            <!-- Output -->
+            <section class="section">
+                <h2>Output</h2>
 
-                <label>Business Name</label>
-                <input id="perk-business-name" type="text" placeholder="Café Blue" />
+                <div class="field inline">
+                    <div>
+                        <label for="slug">Slug</label>
+                        <input id="slug" type="text" readonly>
+                    </div>
+                    <div>
+                        <label for="nfc">NFC Tag ID</label>
+                        <input id="nfc" type="text" readonly>
+                    </div>
+                </div>
 
-                <label>Type</label>
-                <select id="perk-type">
-                    <option value="discount">discount</option>
-                    <option value="free_item">free_item</option>
-                </select>
+                <div class="field inline">
+                    <div>
+                        <label for="share">Share URL</label>
+                        <input id="share" type="text" readonly>
+                    </div>
+                    <div>
+                        <label for="nfcurl">NFC URL</label>
+                        <input id="nfcurl" type="text" readonly>
+                    </div>
+                </div>
 
-                <label>Discount % (if discount)</label>
-                <input id="perk-discount" type="number" placeholder="10" />
+                <div class="field">
+                    <label for="json">JSON</label>
+                    <textarea id="json" readonly></textarea>
+                </div>
 
-                <label>Cooldown (seconds)</label>
-                <input id="perk-cooldown" type="number" placeholder="86400" />
+                <button id="generate">Generate</button>
+                <button id="save">Save to Backend</button>
+                <button id="copy">Copy JSON</button>
 
-                <button id="add-perk">Add Perk</button>
-            </div>
-
-            <button id="generate">Generate</button>
-            <button id="save">Save to Backend</button>
-        </div>
-
-
-        <div class="section">
-            <h2>Output</h2>
-
-            <label>Slug</label>
-            <input id="slug" type="text" readonly>
-
-            <label>NFC Tag ID</label>
-            <input id="nfc" type="text" readonly>
-
-            <label>Share URL</label>
-            <input id="share" type="text" readonly>
-
-            <label>NFC URL</label>
-            <input id="nfcurl" type="text" readonly>
-
-            <label>JSON Output</label>
-            <textarea id="json" readonly></textarea>
-
-            <button id="copy">Copy JSON</button>
-
-            <h3>QR Code (NFC URL)</h3>
-            <div id="qrcode"></div>
-        </div>
-
+                <h3>QR Code (NFC URL)</h3>
+                <div id="qrcode"></div>
+            </section>
+        </main>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
