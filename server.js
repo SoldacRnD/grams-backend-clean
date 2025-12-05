@@ -330,16 +330,31 @@ app.get('/api/producer/grams/by-id/:id', async (req, res) => {
         return res.status(500).json({ error: 'Server error' });
     }
 });
+// normalize url
+function normalizeImageUrl(url) {
+    if (!url) return url;
+    try {
+        const u = new URL(url);
+        u.search = '';
+        return u.toString();
+    } catch (e) {
+        const idx = url.indexOf('?');
+        return idx === -1 ? url : url.slice(0, idx);
+    }
+}
+
 
 // Check if a Gram already exists for a given image_url
 app.get('/api/producer/grams/by-image', async (req, res) => {
-    const imageUrl = req.query.imageUrl;
-    if (!imageUrl) {
+    const rawUrl = req.query.imageUrl;
+    if (!rawUrl) {
         return res.status(400).json({ error: 'imageUrl query param is required' });
     }
 
+    const normalized = normalizeImageUrl(rawUrl);
+
     try {
-        const gram = await db.getGramByImageUrl(imageUrl);
+        const gram = await db.getGramByImageUrl(normalized);
         if (!gram) {
             return res.status(404).json({ error: 'No gram for this image' });
         }
@@ -349,6 +364,7 @@ app.get('/api/producer/grams/by-image', async (req, res) => {
         return res.status(500).json({ error: 'Server error' });
     }
 });
+
 
 // -----------------------------------------------------------------------------
 // Save or update a Gram from Producer UI

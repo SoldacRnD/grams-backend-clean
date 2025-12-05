@@ -186,19 +186,50 @@ class SupabaseDB {
     }
 
     async getGramByImageUrl(imageUrl) {
-        const { data, error } = await supabase
+        // Normalize Shopify URLs by removing ?v=... or any query params
+        function normalize(url) {
+            if (!url) return url;
+            try {
+                const u = new URL(url);
+                u.search = '';
+                return u.toString();
+            } catch (e) {
+                const idx = url.indexOf('?');
+                return idx === -1 ? url : url.slice(0, idx);
+            }
+        }
+
+        const base = normalize(imageUrl);
+
+        // --- 1) Try exact match on normalized URL ---
+        let { data, error } = await supabase
             .from('grams')
             .select('*')
-            .eq('image_url', imageUrl)
+            .eq('image_url', base)
             .maybeSingle();
 
         if (error && error.code !== 'PGRST116') {
-            console.error('Supabase getGramByImageUrl error:', error);
+            console.error('Supabase getGramByImageUrl error (exact match):', error);
+            throw error;
+        }
+
+        if (data) return data;
+
+        // --- 2) Fallback: old rows stored with ?v=... or other queries ---
+        ({ data, error } = await supabase
+            .from('grams')
+            .select('*')
+            .ilike('image_url', `${base}%`)
+            .maybeSingle());
+
+        if (error && error.code !== 'PGRST116') {
+            console.error('Supabase getGramByImageUrl error (ilike fallback):', error);
             throw error;
         }
 
         return data || null;
     }
+
 
     async getAllGrams() {
         const { data, error } = await supabase

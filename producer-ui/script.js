@@ -120,10 +120,11 @@ function renderUploaded() {
             const imageInput = document.getElementById("image");
             const titleInput = document.getElementById("title");
             const idInput = document.getElementById("id");
+            const finalUrl = f.normalizedUrl || f.url;
 
-            if (imageInput && f.url) {
-                imageInput.value = f.url;
-            } else if (!f.url) {
+            if (imageInput && finalUrl) {
+                imageInput.value = finalUrl;
+            } else if (!finalUrl) {
                 imageInput.placeholder = "CDN URL not ready yet – re-upload later or paste from Shopify Files.";
             }
 
@@ -142,20 +143,34 @@ function renderUploaded() {
         statusEl.textContent = "Uploaded " + lastUploaded.length + " image(s). Click one to edit.";
     }
 }
+// Normalize Search IMG url
+function normalizeImageUrl(url) {
+    if (!url) return url;
+    try {
+        const u = new URL(url);
+        u.search = ''; // drop ?v=...
+        return u.toString();
+    } catch (e) {
+        // Fallback if URL constructor fails
+        const idx = url.indexOf('?');
+        return idx === -1 ? url : url.slice(0, idx);
+    }
+}
+
 async function refreshSavedStatusForUploads() {
     for (const f of lastUploaded) {
-        if (!f.url) continue;
+        const candidateUrl = f.normalizedUrl || f.url;
+        if (!candidateUrl) continue;
         try {
             const res = await fetch(
                 `${BACKEND_BASE}/api/producer/grams/by-image?imageUrl=` +
-                encodeURIComponent(f.url)
+                encodeURIComponent(candidateUrl)
             );
             if (res.ok) {
-                // If we get a gram back, mark this file as saved
                 f.saved = true;
             }
         } catch (e) {
-            console.error('Error checking saved status for', f.url, e);
+            console.error('Error checking saved status for', candidateUrl, e);
         }
     }
 }
@@ -255,6 +270,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 document.getElementById("json").value =
                     JSON.stringify(gramForJson, null, 2);
+                // ✅ NEW: sync with uploaded list
+                if (gram.image_url && Array.isArray(lastUploaded) && lastUploaded.length) {
+                    let foundIndex = -1;
+                    lastUploaded.forEach((f, idx) => {
+                        if (f.url === gram.image_url) {
+                            f.saved = true;
+                            if (foundIndex === -1) foundIndex = idx;
+                        }
+                    });
+
+                    if (foundIndex !== -1) {
+                        currentImageIndex = foundIndex;
+                        renderUploaded();
+                    }
+                }
             } catch (e) {
                 console.error("Error loading gram:", e);
                 alert("Error loading Gram");
@@ -295,7 +325,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Initialize with saved: false
                 lastUploaded = data.files.map(f => ({
                     ...f,
-                    saved: false
+                    saved: false,
+                    normalizedUrl: normalizeImageUrl(f.url)
                 }));
 
                 currentImageIndex = lastUploaded.length ? 0 : -1;
@@ -388,7 +419,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let id = idInput.value.trim();
             const title = titleInput.value.trim();
-            const image = imageInput.value.trim();
+            const rawImage = imageInput.value.trim();
+            const image = normalizeImageUrl(rawImage);
             const desc = descInput.value.trim();
             const frame = frameSelect.value;
             const glow = glowCheckbox.checked;
@@ -490,6 +522,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
+                // ✅ NEW: mark matching upload as saved
+                if (gram.image_url && Array.isArray(lastUploaded) && lastUploaded.length) {
+                    const gramNorm = normalizeImageUrl(gram.image_url);
+                    for (const f of lastUploaded) {
+                        const candidate = f.normalizedUrl || normalizeImageUrl(f.url);
+                        if (candidate === gramNorm) {
+                            f.saved = true;
+                        }
+                    }
+                    renderUploaded();
+                }
+
+
                 alert('Gram saved to backend (Supabase) successfully.');
             } catch (err) {
                 console.error('Save error:', err);
@@ -497,6 +542,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
     }
+
 
     renderPerks();
     renderUploaded();
