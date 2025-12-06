@@ -54,7 +54,29 @@ function populateFormFromGram(gram) {
     };
     document.getElementById("json").value =
         JSON.stringify(gramForJson, null, 2);
+
+    // 🔹 QR CODE: regenerate whenever we load a gram
+    const qrContainer = document.getElementById("qrcode");
+    if (qrContainer) {
+        qrContainer.innerHTML = "";
+
+        let url = "";
+        if (gram.nfc_tag_id) {
+            url = `${SHOP_DOMAIN}/pages/gram?tag=${gram.nfc_tag_id}`;
+        } else if (gram.slug) {
+            url = `${SHOP_DOMAIN}/pages/gram?slug=${gram.slug}`;
+        }
+
+        if (url) {
+            new QRCode(qrContainer, {
+                text: url,
+                width: 128,
+                height: 128
+            });
+        }
+    }
 }
+
 
 function syncUploadedSelectionForGram(gram) {
     if (!gram || !gram.image_url || !Array.isArray(lastUploaded) || !lastUploaded.length) {
