@@ -4,6 +4,75 @@ const BACKEND_BASE = window.location.origin;
 let currentPerks = [];
 let lastUploaded = [];  // { originalName, shopifyId, url, status }
 let currentImageIndex = -1;
+let existingGrams = [];
+
+function populateFormFromGram(gram) {
+    if (!gram) return;
+
+    // Fill main form
+    document.getElementById("id").value = gram.id || "";
+    document.getElementById("title").value = gram.title || "";
+    document.getElementById("image").value = gram.image_url || "";
+    document.getElementById("desc").value = gram.description || "";
+
+    const frameSelect = document.getElementById("frame");
+    const glowCheckbox = document.getElementById("glow");
+    if (frameSelect) {
+        frameSelect.value = (gram.effects && gram.effects.frame) || "none";
+    }
+    if (glowCheckbox) {
+        glowCheckbox.checked = !!(gram.effects && gram.effects.glow);
+    }
+
+    // Output fields
+    document.getElementById("slug").value = gram.slug || "";
+    document.getElementById("nfc").value = gram.nfc_tag_id || "";
+    document.getElementById("share").value = gram.slug
+        ? `${SHOP_DOMAIN}/pages/gram?slug=${gram.slug}`
+        : "";
+    document.getElementById("nfcurl").value = gram.nfc_tag_id
+        ? `${SHOP_DOMAIN}/pages/gram?tag=${gram.nfc_tag_id}`
+        : "";
+
+    // Perks
+    currentPerks = Array.isArray(gram.perks) ? gram.perks : [];
+    renderPerks();
+
+    // JSON preview (with owner preserved)
+    const gramForJson = {
+        id: gram.id,
+        slug: gram.slug,
+        nfc_tag_id: gram.nfc_tag_id,
+        title: gram.title,
+        image_url: gram.image_url,
+        description: gram.description,
+        effects: gram.effects || {},
+        owner_id: gram.owner_id || null,
+        perks: currentPerks
+    };
+    document.getElementById("json").value =
+        JSON.stringify(gramForJson, null, 2);
+}
+
+function syncUploadedSelectionForGram(gram) {
+    if (!gram || !gram.image_url || !Array.isArray(lastUploaded) || !lastUploaded.length) {
+        return;
+    }
+
+    let foundIndex = -1;
+    lastUploaded.forEach((f, idx) => {
+        if (f.url === gram.image_url) {
+            f.saved = true;
+            if (foundIndex === -1) foundIndex = idx;
+        }
+    });
+
+    if (foundIndex !== -1) {
+        currentImageIndex = foundIndex;
+        renderUploaded();
+    }
+}
+
 
 function slugify(input) {
     return input
@@ -120,8 +189,30 @@ function renderUploaded() {
             const imageInput = document.getElementById("image");
             const titleInput = document.getElementById("title");
             const idInput = document.getElementById("id");
-            const finalUrl = f.normalizedUrl || f.url;
 
+            const finalUrl = f.url; // (or f.normalizedUrl || f.url if you added normalization)
+
+            // 🔹 B.1: if this upload is already linked to a Gram (saved = true),
+            // auto-load that Gram from backend.
+            if (f.saved && finalUrl) {
+                try {
+                    const res = await fetch(
+                        `${BACKEND_BASE}/api/producer/grams/by-image?imageUrl=` +
+                        encodeURIComponent(finalUrl)
+                    );
+                    if (res.ok) {
+                        const gram = await res.json();
+                        populateFormFromGram(gram);
+                        syncUploadedSelectionForGram(gram);
+                        return; // done, no need to set up a new gram
+                    }
+                } catch (e) {
+                    console.error('Error auto-loading gram by image:', e);
+                    // fall through to "new gram" behavior
+                }
+            }
+
+            // Default behavior for NEW grams (no existing backend record yet)
             if (imageInput && finalUrl) {
                 imageInput.value = finalUrl;
             } else if (!finalUrl) {
@@ -138,6 +229,7 @@ function renderUploaded() {
             }
         };
     });
+
 
     if (statusEl) {
         statusEl.textContent = "Uploaded " + lastUploaded.length + " image(s). Click one to edit.";
@@ -174,7 +266,62 @@ async function refreshSavedStatusForUploads() {
         }
     }
 }
+// 🔹 NEW: global scope
+function renderExistingGrams() {
+    const container = document.getElementById("existing-grams");
+    if (!container) return;
 
+    if (!existingGrams.length) {
+        container.innerHTML = "<p>No grams saved yet.</p>";
+        return;
+    }
+
+    container.innerHTML = existingGrams.map(g => {
+        const title = g.title || g.id || "(Untitled)";
+        const thumb = g.image_url
+            ? `<img src="${g.image_url}" alt="${title}" class="existing-thumb">`
+            : "";
+        const slugText = g.slug ? ` · ${g.slug}` : "";
+
+        return `
+      <div class="existing-gram-item" data-id="${g.id}">
+        ${thumb}
+        <div class="existing-meta">
+          <strong>${title}</strong>
+          <div class="existing-sub">ID: ${g.id}${slugText}</div>
+        </div>
+      </div>
+    `;
+    }).join("");
+
+    container.querySelectorAll(".existing-gram-item").forEach(el => {
+        el.onclick = () => {
+            const id = el.getAttribute("data-id");
+            const gram = existingGrams.find(g => String(g.id) === String(id));
+            if (gram) {
+                populateFormFromGram(gram);
+                syncUploadedSelectionForGram(gram);
+            }
+        };
+    });
+}
+
+async function loadExistingGrams() {
+    try {
+        const res = await fetch(`${BACKEND_BASE}/api/producer/grams`);
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || !data.ok || !Array.isArray(data.grams)) {
+            console.error('Failed to fetch existing grams:', res.status, data);
+            return;
+        }
+
+        existingGrams = data.grams;
+        renderExistingGrams();
+    } catch (e) {
+        console.error('Error loading existing grams:', e);
+    }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Producer UI loaded, backend base =', BACKEND_BASE);
@@ -213,7 +360,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     gram = await res.json();
                 } else {
-                    // Use public slug endpoint
                     const res = await fetch(
                         `${BACKEND_BASE}/api/grams/by-slug/` +
                         encodeURIComponent(slugVal)
@@ -227,70 +373,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 console.log('Loaded gram into Producer:', gram);
 
-                // Fill main form
-                document.getElementById("id").value = gram.id || "";
-                document.getElementById("title").value = gram.title || "";
-                document.getElementById("image").value = gram.image_url || "";
-                document.getElementById("desc").value = gram.description || "";
+                // ✅ new helpers
+                populateFormFromGram(gram);
+                syncUploadedSelectionForGram(gram);
 
-                const frameSelect = document.getElementById("frame");
-                const glowCheckbox = document.getElementById("glow");
-                if (frameSelect) {
-                    frameSelect.value = (gram.effects && gram.effects.frame) || "none";
-                }
-                if (glowCheckbox) {
-                    glowCheckbox.checked = !!(gram.effects && gram.effects.glow);
-                }
-
-                // Output fields
-                document.getElementById("slug").value = gram.slug || "";
-                document.getElementById("nfc").value = gram.nfc_tag_id || "";
-                document.getElementById("share").value = gram.slug
-                    ? `${SHOP_DOMAIN}/pages/gram?slug=${gram.slug}`
-                    : "";
-                document.getElementById("nfcurl").value = gram.nfc_tag_id
-                    ? `${SHOP_DOMAIN}/pages/gram?tag=${gram.nfc_tag_id}`
-                    : "";
-
-                // Perks
-                currentPerks = Array.isArray(gram.perks) ? gram.perks : [];
-                renderPerks();
-
-                // JSON preview (with owner preserved)
-                const gramForJson = {
-                    id: gram.id,
-                    slug: gram.slug,
-                    nfc_tag_id: gram.nfc_tag_id,
-                    title: gram.title,
-                    image_url: gram.image_url,
-                    description: gram.description,
-                    effects: gram.effects || {},
-                    owner_id: gram.owner_id || null,
-                    perks: currentPerks
-                };
-                document.getElementById("json").value =
-                    JSON.stringify(gramForJson, null, 2);
-                // ✅ NEW: sync with uploaded list
-                if (gram.image_url && Array.isArray(lastUploaded) && lastUploaded.length) {
-                    let foundIndex = -1;
-                    lastUploaded.forEach((f, idx) => {
-                        if (f.url === gram.image_url) {
-                            f.saved = true;
-                            if (foundIndex === -1) foundIndex = idx;
-                        }
-                    });
-
-                    if (foundIndex !== -1) {
-                        currentImageIndex = foundIndex;
-                        renderUploaded();
-                    }
-                }
             } catch (e) {
                 console.error("Error loading gram:", e);
                 alert("Error loading Gram");
             }
         };
     }
+
 
 
     // Upload images to Shopify
@@ -534,7 +627,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     renderUploaded();
                 }
 
-
                 alert('Gram saved to backend (Supabase) successfully.');
             } catch (err) {
                 console.error('Save error:', err);
@@ -542,7 +634,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
     }
-
+    // Load gallery of existing grams
+    loadExistingGrams();
 
     renderPerks();
     renderUploaded();

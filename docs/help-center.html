@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>A Gram of Art – Help Center</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #050608;
+      color: #F2F2F2;
+      line-height: 1.65;
+    }
+
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 280px;
+      background: #0F1117;
+      padding: 24px;
+      border-right: 1px solid rgba(255,255,255,0.08);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .sidebar h1 {
+      font-size: 20px;
+      margin-bottom: 16px;
+      font-weight: 600;
+    }
+
+    .sidebar nav a {
+      display: block;
+      color: #B9BCC5;
+      padding: 6px 0;
+      text-decoration: none;
+      font-size: 14px;
+      border-left: 3px solid transparent;
+      padding-left: 12px;
+      margin-left: -12px;
+    }
+
+    .sidebar nav a:hover {
+      color: #FFF;
+      border-left-color: #7C5CFC;
+    }
+
+    hr {
+      border: none;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      margin: 16px 0;
+    }
+
+    main.content {
+      flex: 1;
+      padding: 40px;
+      max-width: 980px;
+      margin: 0 auto;
+    }
+
+    h2, h3 {
+      color: #FFF;
+      scroll-margin-top: 70px;
+    }
+
+    pre {
+      background: rgba(255,255,255,0.07);
+      padding: 14px 18px;
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+
+    code {
+      background: rgba(255,255,255,0.12);
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 12px;
+      margin: 12px 0;
+    }
+
+    figcaption {
+      color: #AEB0B6;
+      font-size: 14px;
+      margin-bottom: 14px;
+    }
+
+    @media (max-width: 900px) {
+      .layout { flex-direction: column; }
+      .sidebar { width: 100%; height: auto; position: relative; }
+      main.content { padding: 24px; }
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <h1>A Gram of Art</h1>
+    <nav>
+      <a href="#01-what-is-a-gram-of-art">What Is A Gram of Art?</a>
+      <a href="#02-how-the-system-works-high-level-overview">How It Works</a>
+      <a href="#03-roles-in-the-system">Roles</a>
+      <a href="#04-a-grams-lifecycle">Gram Lifecycle</a>
+      <a href="#05-system-architecture">System Architecture</a>
+      <hr>
+
+      <a href="#06-developer-setup">Developer Setup</a>
+      <a href="#07-supabase-management">Supabase Management</a>
+      <a href="#08-shopify-integration">Shopify Integration</a>
+      <hr>
+
+      <a href="#09-producer-tool-manual">Producer Tool Manual</a>
+      <hr>
+
+      <a href="#10-api-documentation">API Documentation</a>
+      <a href="#11-customer-experience">Customer Experience</a>
+      <a href="#12-nfc-guide">NFC Programming Guide</a>
+      <hr>
+
+      <a href="#13-troubleshooting">Troubleshooting</a>
+      <a href="#14-backup-recovery">Backup & Recovery</a>
+      <a href="#15-security">Security</a>
+      <a href="#16-scalability">Scalability</a>
+    </nav>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="content">
+
+    <!-- INTRO -->
+    <section>
+      <h2>A Gram of Art – Help Center</h2>
+      <p>
+        Welcome to the centralized documentation for the <strong>A Gram of Art – NFC Collection and Smart Advertising</strong> system.
+        Use the navigation menu to jump between articles.
+      </p>
+    </section>
+
+    <!-- ARTICLE 1 -->
+    <section id="01-what-is-a-gram-of-art">
+      <h2>1. What Is A Gram of Art?</h2>
+      <p>A <strong>Gram of Art</strong> is a collectible digital artwork linked to a physical NFC chip.</p>
+      <ul>
+        <li>🎨 Artwork uploaded to Shopify Files</li>
+        <li>📱 Digital collectible stored in Supabase</li>
+        <li>🎁 Includes perks (discounts, free items, cooldowns)</li>
+        <li>🔐 Claimable by customers via Shopify login</li>
+      </ul>
+      <figure>
+        <img src="images/product-page-gram-of-art.png" alt="Example Gram product page">
+        <figcaption>The first version of the A Gram of Art product page.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ARTICLE 2 -->
+    <section id="02-how-the-system-works-high-level-overview">
+      <h2>2. How the System Works (High Level)</h2>
+      <p>The system connects:</p>
+      <ul>
+        <li>Producer Tool → Backend → Shopify Files</li>
+        <li>NFC Tags → Shopify Gram Page → Backend</li>
+        <li>Claiming → Supabase Ownership</li>
+      </ul>
+      <figure>
+        <img src="images/site-landing-overview.png" alt="Hero section of soldacstudio.com">
+        <figcaption>Front of website – conceptual overview.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ARTICLE 3 -->
+    <section id="03-roles-in-the-system">
+      <h2>3. Roles in the System</h2>
+      <h3>Administrators</h3>
+      <ul>
+        <li>Handle Supabase, Render, Shopify, backend</li>
+      </ul>
+
+      <h3>Producers</h3>
+      <ul>
+        <li>Use Producer Tool to create/edit Grams</li>
+      </ul>
+
+      <figure>
+        <img src="images/producer-tool-overview.png" alt="Producer Tool main interface">
+        <figcaption>Main Producer Tool UI for internal use.</figcaption>
+      </figure>
+
+      <h3>Customers</h3>
+      <p>Tap NFC → View Gram → Claim → See in My Grams.</p>
+      <figure>
+        <img src="images/customer-gram-page.png" alt="Customer Gram page example">
+      </figure>
+    </section>
+
+    <!-- ARTICLE 4 -->
+    <section id="04-a-grams-lifecycle">
+      <h2>4. Gram Lifecycle</h2>
+      <ol>
+        <li>Artwork created</li>
+        <li>Uploaded via Producer Tool</li>
+        <li>Metadata + perks added</li>
+        <li>Saved to backend</li>
+        <li>NFC programed</li>
+        <li>Customer taps → claims</li>
+      </ol>
+      <figure>
+        <img src="images/my-grams-collection.png" alt="My Grams collection">
+      </figure>
+    </section>
+
+    <!-- ARTICLE 5 -->
+    <section id="05-system-architecture">
+      <h2>5. System Architecture</h2>
+
+      <p>The system consists of Shopify (frontend), Render (backend), Supabase (database), NFC tags, and Producer Tool.</p>
+
+      <figure>
+        <img src="images/architecture-overview-diagram.png" alt="System architecture diagram">
+        <figcaption>Shopify ↔ Backend ↔ Supabase architecture.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ARTICLE 6 -->
+    <section id="06-developer-setup">
+      <h2>6. Developer Setup</h2>
+      <pre><code>git clone https://github.com/SoldacRnD/grams-backend-clean
+cd grams-backend-clean
+npm install
+npm start</code></pre>
+
+      <figure>
+        <img src="images/render-service-overview.png" alt="Render deployment">
+      </figure>
+    </section>
+
+    <!-- ARTICLE 7 -->
+    <section id="07-supabase-management">
+      <h2>7. Managing Supabase</h2>
+      <p>Supabase stores all Gram records with fields:</p>
+      <ul>
+        <li>id, slug, nfc_tag_id</li>
+        <li>image_url, description</li>
+        <li>perks, effects</li>
+        <li>owner_id</li>
+      </ul>
+      <figure>
+        <img src="images/supabase-grams-table.png" alt="Supabase table view for grams">
+      </figure>
+    </section>
+
+    <!-- ARTICLE 8 -->
+    <section id="08-shopify-integration">
+      <h2>8. Shopify Integration</h2>
+
+      <h3>Shopify Files</h3>
+      <figure>
+        <img src="images/shopify-files-grams.png" alt="Shopify Files showing Gram images">
+      </figure>
+
+      <h3>Theme Pages</h3>
+      <ul>
+        <li>gram-viewer.liquid</li>
+        <li>my-grams.liquid</li>
+      </ul>
+    </section>
+
+    <!-- ARTICLE 9 -->
+    <section id="09-producer-tool-manual">
+      <h2>9. Producer Tool Manual</h2>
+
+      <section id="09-producer-tool-manual-complete-step-by-step-guide">
+  <h2>9. Producer Tool Manual (Complete Step-by-Step Guide)</h2>
+
+  <p>
+    The <strong>Gram Producer Tool</strong> is the internal interface used to create, edit,
+    and manage Grams. Producers use it to upload artwork, configure metadata, assign perks,
+    generate NFC URLs and QR codes, and save everything to the backend.
+  </p>
+
+  <figure>
+    <img src="images/producer-tool-overview.png" alt="Producer Tool main screen overview">
+    <figcaption>Main Producer Tool screen with image upload, details, perks and JSON preview.</figcaption>
+  </figure>
+
+  <h3>9.1 Accessing the Producer Tool</h3>
+
+  <p>
+    In production, the Producer Tool is served by the backend at:
+  </p>
+
+  <pre><code>https://YOUR-BACKEND-URL/producer</code></pre>
+
+  <p>
+    When running locally during development:
+  </p>
+
+  <pre><code>http://localhost:3000/producer</code></pre>
+
+  <p>
+    There is no authentication built into this tool yet, so you should keep it private by:
+  </p>
+
+  <ul>
+    <li>Restricting access by IP (only office / home network).</li>
+    <li>Placing it behind a password-protected reverse proxy (future improvement).</li>
+    <li>Only exposing it on internal networks or staging environments.</li>
+  </ul>
+
+  <h3>9.2 Layout & Sections</h3>
+
+  <p>The Producer Tool UI is logically split into the following sections:</p>
+
+  <ul>
+    <li><strong>Images</strong> – upload and manage artwork files.</li>
+    <li><strong>Load Existing Gram</strong> – load an existing Gram by ID or slug for editing.</li>
+    <li><strong>Gram Details</strong> – set ID, title, description, image URL, NFC tag ID, effects, slug.</li>
+    <li><strong>Perks</strong> – define discounts, free items, cooldowns and partner businesses.</li>
+    <li><strong>Output & NFC</strong> – JSON payload preview, backend save button, NFC URL.</li>
+    <li><strong>QR Code</strong> – generated from the NFC URL for printing or packaging.</li>
+  </ul>
+
+  <figure>
+    <img src="images/producer-gram-details-uploaded-images.png" alt="Gram details and perks sections in Producer Tool">
+    <figcaption>Gram details (ID, title, image, description, NFC tag ID) and perks configuration.</figcaption>
+  </figure>
+
+  <h3>9.3 Step 1 — Upload Image(s)</h3>
+
+  <p>
+    The first step in creating a Gram is uploading the artwork image. The Producer Tool
+    sends these files to Shopify Files through the backend.
+  </p>
+
+  <ol>
+    <li>Click <strong>“Choose Files”</strong> and select one or more PNG/JPG files.</li>
+    <li>Click <strong>“Upload to Shopify”</strong>.</li>
+    <li>Wait until each file appears in the “Uploaded images” list with a preview thumbnail.</li>
+  </ol>
+
+  <figure>
+    <img src="images/producer-uploaded-images.png" alt="Uploaded images list after sending files to Shopify">
+    <figcaption>Uploaded images, ready to be used as Gram artwork.</figcaption>
+  </figure>
+
+  <p>
+    Once uploaded, the backend:
+  </p>
+
+  <ul>
+    <li>Creates a staged upload in Shopify via GraphQL.</li>
+    <li>Uploads the binary file to Shopify’s S3 bucket.</li>
+    <li>Calls <code>fileCreate</code> to register it as a Shopify File.</li>
+    <li>Retrieves the final CDN URL and returns it to the Producer Tool.</li>
+  </ul>
+
+  <p>
+    The returned URL (e.g.,
+    <code>https://cdn.shopify.com/s/files/.../GRAM_1_1.jpg?v=123456789</code>) will be used
+    as the <code>image_url</code> field for the Gram.
+  </p>
+
+  <h4>Troubleshooting Uploads</h4>
+
+  <ul>
+    <li><strong>No images appear after uploading:</strong> Check the backend logs for Shopify errors.</li>
+    <li><strong>Access denied / auth error:</strong> Verify <code>SHOPIFY_ADMIN_TOKEN</code> in Render env vars.</li>
+    <li><strong>File too large:</strong> Compress image and try again.</li>
+  </ul>
+
+  <h3>9.4 Step 2 — Load Existing Gram or Create a New One</h3>
+
+  <p>
+    Before filling details, decide if you are <strong>editing</strong> an existing Gram or
+    <strong>creating</strong> a new one.
+  </p>
+
+  <h4>Load Existing Gram</h4>
+
+  <p>You can load an existing Gram by:</p>
+
+  <ul>
+    <li>Entering its <strong>ID</strong> (e.g., <code>G006</code>), or</li>
+    <li>Entering its <strong>slug</strong> (e.g., <code>dreaming-siggy</code>).</li>
+  </ul>
+
+  <p>The tool will fetch the Gram from the backend and populate all fields and perks.</p>
+
+  <h4>Create New Gram</h4>
+
+  <p>For a new Gram:</p>
+
+  <ul>
+    <li>Use the <strong>“Get Next ID”</strong> action (or similar) which calls <code>/api/producer/next-id</code>.</li>
+    <li>Alternatively, manually set a new ID following the existing format (<code>G001, G002, G003...</code>).</li>
+  </ul>
+
+  <p>
+    IDs should be unique and sequential for easier management. Avoid reusing or renaming IDs after
+    Grams have been sold or assigned to NFC tags.
+  </p>
+
+  <h3>9.5 Step 3 — Fill Gram Details</h3>
+
+  <p>Now fill in all Gram properties in the “Gram Details” section:</p>
+
+  <ul>
+    <li><strong>ID</strong> – unique identifier (e.g., <code>G006</code>).</li>
+    <li><strong>Title</strong> – display name (e.g., “Dreaming Siggy”).</li>
+    <li><strong>Image URL</strong> – select from the uploaded images or paste the Shopify File URL.</li>
+    <li><strong>Description</strong> – short description shown on the Gram page.</li>
+    <li><strong>Slug</strong> – URL-friendly version of the title (autogenerated, can be edited).</li>
+    <li><strong>NFC Tag ID</strong> – identifier printed or associated with the physical NFC tag (e.g., <code>TAG-G006</code>).</li>
+    <li><strong>Effects</strong> – optional frame/glow styles for the frontend to use.</li>
+  </ul>
+
+  <figure>
+    <img src="images/producer-gram-details.png" alt="Gram details fields including title, slug, NFC tag ID and description">
+    <figcaption>Gram details form before saving to the backend.</figcaption>
+  </figure>
+
+  <p>
+    The <strong>slug</strong> and <strong>NFC tag ID</strong> are particularly important.
+    The slug powers shareable URLs and theme routing, and the NFC tag ID is what your backend
+    uses to resolve a Gram from a physical tag.
+  </p>
+
+  <h3>9.6 Step 4 — Configure Perks</h3>
+
+  <p>
+    Perks allow a Gram to act as a local rewards or benefits card. Each perk defines a
+    relationship with a business and what benefit the owner gets.
+  </p>
+
+  <p>Each perk includes fields like:</p>
+
+  <ul>
+    <li><strong>Business ID</strong> – internal ID (e.g., <code>AVOMARIA</code>).</li>
+    <li><strong>Business Name</strong> – display name (e.g., “AvoMaria Café”).</li>
+    <li><strong>Type</strong> – <code>discount</code> or <code>free_item</code>.</li>
+    <li><strong>Discount %</strong> – when type is <code>discount</code> (e.g., 10).</li>
+    <li><strong>Item</strong> – when type is <code>free_item</code> (e.g., “espresso”).</li>
+    <li><strong>Cooldown (seconds)</strong> – minimum time between perk uses.</li>
+  </ul>
+
+  <p>Example perks JSON as stored in Supabase:</p>
+
+  <pre><code>{
+  "perks": [
+    {
+      "business_id": "AVOMARIA",
+      "business_name": "AvoMaria Café",
+      "type": "discount",
+      "discount": 10,
+      "cooldown": 86400
+    },
+    {
+      "business_id": "BARDAESQUINA",
+      "business_name": "Bar Da Esquina",
+      "type": "free_item",
+      "item": "beer",
+      "cooldown": 86400
+    }
+  ]
+}</code></pre>
+
+  <figure>
+    <img src="images/producer-perks-section.png" alt="Perks configuration UI with multiple perks for different businesses">
+    <figcaption>Perks list for a Gram, one per partner business.</figcaption>
+  </figure>
+
+  <p>
+    You can add multiple perks for a single Gram so that one collectible provides benefits at
+    different locations.
+  </p>
+
+  <h4>Perks Best Practices</h4>
+
+  <ul>
+    <li>Use stable, short <strong>business IDs</strong> to avoid breaking integrations.</li>
+    <li>Be explicit whether a perk is a discount or a free item.</li>
+    <li>Set realistic cooldowns (e.g., 24 hours = 86400 seconds).</li>
+  </ul>
+
+  <h3>9.7 Step 5 — Review JSON Payload</h3>
+
+  <p>
+    Before saving, the Producer Tool shows a JSON preview of the Gram object that will be sent
+    to the backend.
+  </p>
+
+  <pre><code>{
+  "id": "G006",
+  "slug": "dreaming-siggy",
+  "nfc_tag_id": "TAG-G006",
+  "title": "Dreaming Siggy",
+  "description": "Siggy sleeping under a tree dreaming of bones.",
+  "image_url": "https://cdn.shopify.com/s/files/.../dreaming-siggy.jpg?v=123456",
+  "effects": { "frame": "none", "glow": false },
+  "owner_id": null,
+  "perks": [ ... ]
+}</code></pre>
+
+  <p>Double-check:</p>
+
+  <ul>
+    <li>ID is correct and not reused.</li>
+    <li>Slug matches the intended URL.</li>
+    <li><code>nfc_tag_id</code> matches the physical NFC tag that will be programmed.</li>
+    <li>Perks array is correctly formatted JSON.</li>
+  </ul>
+
+  <h3>9.8 Step 6 — Save Gram to Backend</h3>
+
+  <p>
+    When everything looks correct, click <strong>“Save to Backend”</strong>. The tool sends a
+    <code>POST</code> request to <code>/api/producer/grams</code>.
+  </p>
+
+  <p>The backend will:</p>
+
+  <ul>
+    <li>Validate required fields (ID, slug, title, image_url).</li>
+    <li>Insert a new row if the ID doesn’t exist.</li>
+    <li>Update the existing row if the ID already exists.</li>
+    <li>Return a success or error response.</li>
+  </ul>
+
+  <figure>
+    <img src="images/producer-save-success.png" alt="Notification showing Gram saved successfully to backend">
+    <figcaption>Confirmation that the Gram has been saved in Supabase.</figcaption>
+  </figure>
+
+  <h4>Common Save Errors</h4>
+
+  <ul>
+    <li><strong>“Missing required Gram fields”</strong> – Fill in ID, title, slug, and image URL.</li>
+    <li><strong>Duplicate ID</strong> – Use <code>/next-id</code> or choose a different ID.</li>
+    <li><strong>Invalid JSON</strong> – Fix formatting of <code>perks</code> or <code>effects</code> JSON.</li>
+  </ul>
+
+  <h3>9.9 Step 7 — Generate NFC URL & QR Code</h3>
+
+  <p>
+    Once the Gram is saved, the Producer Tool generates the NFC URL based on the configured
+    <code>nfc_tag_id</code>, for example:
+  </p>
+
+  <pre><code>https://www.soldacstudio.com/gram?tag=TAG-G006</code></pre>
+
+  <p>
+    This URL is what you will write into the NFC tag using an NFC writer app, and what is
+    encoded into the QR code.
+  </p>
+
+  <figure>
+    <img src="images/nfc-qr-example.png" alt="Example QR code linked to a Gram NFC URL">
+    <figcaption>QR code generated for a Gram, useful for packaging or fallback when NFC is not available.</figcaption>
+  </figure>
+
+  <p>
+    The QR code is generated visually in the Producer Tool and can be:
+  </p>
+
+  <ul>
+    <li>Printed on packaging.</li>
+    <li>Used as a fallback when NFC is not available.</li>
+    <li>Shared digitally with testers or partners.</li>
+  </ul>
+
+  <h3>9.10 Editing an Existing Gram</h3>
+
+  <p>
+    To update an existing Gram (for example, to add new perks or improve the description):
+  </p>
+
+  <ol>
+    <li>Load the Gram by ID or slug.</li>
+    <li>Modify the desired fields (title, description, perks, effects, image).</li>
+    <li>Review the JSON preview.</li>
+    <li>Click <strong>“Save to Backend”</strong> again.</li>
+  </ol>
+
+  <p><strong>Fields you can safely edit anytime:</strong></p>
+
+  <ul>
+    <li>Title</li>
+    <li>Description</li>
+    <li>Image URL (if artwork changes)</li>
+    <li>Perks</li>
+    <li>Effects</li>
+  </ul>
+
+  <p><strong>Fields you should avoid changing after launch:</strong></p>
+
+  <ul>
+    <li><strong>ID</strong> – referenced in internal systems and backups.</li>
+    <li><strong>Slug</strong> – changing will break existing links.</li>
+    <li><strong>NFC Tag ID</strong> – changing requires reprogramming physical tags.</li>
+    <li><strong>Owner ID</strong> – changing ownership should be rare and manual via Supabase with caution.</li>
+  </ul>
+
+  <h3>9.11 Quick Reference: Producer Checklist</h3>
+
+  <ul>
+    <li>[ ] Upload artwork and confirm it appears in “Uploaded images”.</li>
+    <li>[ ] Set a unique ID (use “next ID” if available).</li>
+    <li>[ ] Fill title, description, image URL, slug, NFC tag ID, effects.</li>
+    <li>[ ] Add perks with correct business IDs and cooldowns.</li>
+    <li>[ ] Review JSON preview and check for obvious errors.</li>
+    <li>[ ] Click “Save to Backend” and confirm success.</li>
+    <li>[ ] Use the NFC URL to program the physical tag.</li>
+    <li>[ ] Test on a real device: tap NFC → see Gram page → claim → appear in “My Grams”.</li>
+  </ul>
+
+  <p>
+    Following this checklist ensures each Gram is fully functional: artwork displays correctly,
+    NFC points to the right record, claiming works, and perks are ready to be used.
+  </p>
+
+</section>
+
+      <p><em>See full Producer Tool article section provided earlier — paste it here in this spot.</em></p>
+    </section>
+    <!-- ARTICLE 10 -->
+    <section id="10-api-documentation">
+      <h2>10. API Documentation</h2>
+
+      <h3>GET /api/grams/by-tag</h3>
+      <p>Resolves Gram via NFC tag ID.</p>
+
+      <pre><code>GET /api/grams/by-tag?nfcTagId=TAG-G006</code></pre>
+
+      <h3>GET /api/grams/by-slug/:slug</h3>
+      <h3>GET /api/grams?ownerId=...</h3>
+      <h3>POST /api/grams/claim</h3>
+
+      <figure>
+        <img src="images/api-schema-example.png" alt="API docs placeholder">
+      </figure>
+    </section>
+
+    <!-- ARTICLE 11 -->
+    <section id="11-customer-experience">
+      <h2>11. Customer Experience</h2>
+      <p>Customers tap NFC → Gram loads → Claim → Visible in My Grams.</p>
+
+      <figure>
+        <img src="images/my-grams-collection.png" alt="Customer owned Grams">
+      </figure>
+    </section>
+
+    <!-- ARTICLE 12 -->
+    <section id="12-nfc-guide">
+      <h2>12. NFC Tag Programming Guide</h2>
+      <p>Use NFC Tools or NXP TagWriter.</p>
+      <pre><code>https://www.soldacstudio.com/gram?tag=TAG-G006</code></pre>
+      <figure>
+        <img src="images/nfc-qr-example.png" alt="QR code example">
+      </figure>
+    </section>
+
+    <!-- ARTICLE 13 -->
+    <section id="13-troubleshooting">
+      <h2>13. Troubleshooting Library</h2>
+
+      <h3>Backend Issues</h3>
+      <ul><li>500 → Render logs</li></ul>
+
+      <h3>Supabase Issues</h3>
+      <ul><li>Invalid JSON</li></ul>
+
+      <h3>Shopify Issues</h3>
+      <ul><li>Image not appearing → FileCreate failed</li></ul>
+
+      <h3>NFC Issues</h3>
+      <ul><li>Wrong tag ID</li></ul>
+    </section>
+
+    <!-- ARTICLE 14 -->
+    <section id="14-backup-recovery">
+      <h2>14. Backup & Recovery</h2>
+      <ul>
+        <li>Supabase JSON exports</li>
+        <li>Render environment variable backups</li>
+        <li>Shopify Files duplication</li>
+        <li>Theme backups</li>
+      </ul>
+    </section>
+
+    <!-- ARTICLE 15 -->
+    <section id="15-security">
+      <h2>15. Security Best Practices</h2>
+      <ul>
+        <li>Never expose service-role key</li>
+        <li>Enable RLS in future</li>
+        <li>Restrict Producer Tool access</li>
+      </ul>
+    </section>
+
+    <!-- ARTICLE 16 -->
+    <section id="16-scalability">
+      <h2>16. Scalability & Future Architecture</h2>
+      <ul>
+        <li>Vendor dashboard</li>
+        <li>Perk redemption tracking</li>
+        <li>NFC batch writer tool</li>
+        <li>Native mobile app</li>
+      </ul>
+    </section>
+
+  </main>
+</div>
+
+</body>
+</html>
+

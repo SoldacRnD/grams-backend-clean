@@ -1,0 +1,70 @@
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #050608;
+  color: #f6f5f4;
+}
+
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 260px;
+  padding: 24px;
+  background: #0f1117;
+  border-right: 1px solid rgba(255,255,255,0.05);
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.sidebar h1 {
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.sidebar nav a {
+  display: block;
+  padding: 6px 0;
+  font-size: 0.9rem;
+  color: #c7c9d3;
+  text-decoration: none;
+}
+
+.sidebar nav a:hover {
+  color: #ffffff;
+}
+
+.content {
+  flex: 1;
+  padding: 32px 40px;
+  max-width: 960px;
+}
+
+.content h1, .content h2, .content h3 {
+  color: #ffffff;
+}
+
+.content img {
+  max-width: 100%;
+  border-radius: 12px;
+  margin: 12px 0;
+}
+
+.content code {
+  background: rgba(255,255,255,0.06);
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.content pre {
+  background: rgba(255,255,255,0.06);
+  padding: 12px 16px;
+  border-radius: 10px;
+  overflow-x: auto;
+}

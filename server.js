@@ -313,6 +313,21 @@ app.post('/api/producer/upload-images', upload.array('files'), async (req, res) 
 
 });
 
+// Get Existing Saved Grams from Backend
+app.get('/api/producer/grams', async (req, res) => {
+    const db = new SupabaseDB();
+
+    try {
+        const grams = await db.getAllGrams();
+        return res.json({ ok: true, grams });
+    } catch (err) {
+        console.error('Failed to list grams:', err);
+        return res.status(500).json({
+            ok: false,
+            error: 'Failed to list grams'
+        });
+    }
+});
 app.get('/api/producer/grams/by-id/:id', async (req, res) => {
     const id = req.params.id;
     if (!id) {
