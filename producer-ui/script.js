@@ -199,24 +199,6 @@ async function duplicateGram(id) {
         alert('Error duplicating gram.');
     }
 }
-// Generate QR for this gram (prefer NFC URL; fallback to slug URL)
-const qrContainer = document.getElementById("qrcode");
-if (qrContainer) {
-    qrContainer.innerHTML = "";
-    let url = "";
-    if (gram.nfc_tag_id) {
-        url = `${SHOP_DOMAIN}/pages/gram?tag=${gram.nfc_tag_id}`;
-    } else if (gram.slug) {
-        url = `${SHOP_DOMAIN}/pages/gram?slug=${gram.slug}`;
-    }
-    if (url) {
-        new QRCode(qrContainer, {
-            text: url,
-            width: 128,
-            height: 128
-        });
-    }
-}
 
 
 function slugify(input) {
