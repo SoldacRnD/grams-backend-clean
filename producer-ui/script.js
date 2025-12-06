@@ -598,6 +598,145 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Check which ones already have grams in Supabase
                 await refreshSavedStatusForUploads();
+                function renderExistingGrams() {
+                    const container = document.getElementById("existing-grams");
+                    if (!container) return;
+
+                    if (!existingGrams.length) {
+                        container.innerHTML = "<p>No grams saved yet.</p>";
+                        const pag = document.getElementById("existing-grams-pagination");
+                        if (pag) pag.innerHTML = "";
+                        return;
+                    }
+
+                    const totalPages = Math.max(1, Math.ceil(existingGrams.length / gramsPageSize));
+                    if (gramsCurrentPage > totalPages) gramsCurrentPage = totalPages;
+
+                    const start = (gramsCurrentPage - 1) * gramsPageSize;
+                    const end = start + gramsPageSize;
+                    const pageItems = existingGrams.slice(start, end);
+
+                    container.innerHTML = pageItems.map(g => {
+                        const title = g.title || g.id || "(Untitled)";
+                        const thumb = g.image_url
+                            ? `<img src="${g.image_url}" alt="${title}" class="existing-thumb">`
+                            : "";
+                        const slugText = g.slug ? ` · ${g.slug}` : "";
+
+                        return `
+      <div class="existing-gram-item" data-id="${g.id}">
+        ${thumb}
+        <div class="existing-meta">
+          <strong>${title}</strong>
+          <div class="existing-sub">ID: ${g.id}${slugText}</div>
+          <div class="existing-actions">
+            <button type="button" class="btn-small existing-load" data-id="${g.id}">Load</button>
+            <button type="button" class="btn-small existing-duplicate" data-id="${g.id}">Duplicate</button>
+            <button type="button" class="btn-small existing-delete" data-id="${g.id}">Delete</button>
+          </div>
+        </div>
+      </div>
+    `;
+                    }).join("");
+
+                    // Button handlers
+                    container.querySelectorAll(".existing-load").forEach(btn => {
+                        btn.onclick = (e) => {
+                            e.stopPropagation();
+                            const id = btn.getAttribute("data-id");
+                            const gram = existingGrams.find(g => String(g.id) === String(id));
+                            if (gram) {
+                                populateFormFromGram(gram);
+                                syncUploadedSelectionForGram(gram);
+                            }
+                        };
+                    });
+
+                    container.querySelectorAll(".existing-duplicate").forEach(btn => {
+                        btn.onclick = (e) => {
+                            e.stopPropagation();
+                            const id = btn.getAttribute("data-id");
+                            duplicateGram(id);
+                        };
+                    });
+
+                    container.querySelectorAll(".existing-delete").forEach(btn => {
+                        btn.onclick = (e) => {
+                            e.stopPropagation();
+                            const id = btn.getAttribute("data-id");
+                            deleteGram(id);
+                        };
+                    });
+
+                    // Whole card loads too
+                    container.querySelectorAll(".existing-gram-item").forEach(card => {
+                        card.onclick = () => {
+                            const id = card.getAttribute("data-id");
+                            const gram = existingGrams.find(g => String(g.id) === String(id));
+                            if (gram) {
+                                populateFormFromGram(gram);
+                                syncUploadedSelectionForGram(gram);
+                            }
+                        };
+                    });
+
+                    renderExistingPagination(totalPages);
+                }
+
+                function renderExistingPagination(totalPages) {
+                    const pag = document.getElementById("existing-grams-pagination");
+                    if (!pag) return;
+
+                    if (totalPages <= 1) {
+                        pag.innerHTML = "";
+                        return;
+                    }
+
+                    pag.innerHTML = `
+      <button type="button" class="btn-small" id="grams-prev" ${gramsCurrentPage === 1 ? 'disabled' : ''}>Prev</button>
+      <span class="page-info">Page ${gramsCurrentPage} / ${totalPages}</span>
+      <button type="button" class="btn-small" id="grams-next" ${gramsCurrentPage === totalPages ? 'disabled' : ''}>Next</button>
+    `;
+
+                    const prevBtn = document.getElementById("grams-prev");
+                    const nextBtn = document.getElementById("grams-next");
+
+                    if (prevBtn) {
+                        prevBtn.onclick = () => {
+                            if (gramsCurrentPage > 1) {
+                                gramsCurrentPage--;
+                                renderExistingGrams();
+                            }
+                        };
+                    }
+                    if (nextBtn) {
+                        nextBtn.onclick = () => {
+                            if (gramsCurrentPage < totalPages) {
+                                gramsCurrentPage++;
+                                renderExistingGrams();
+                            }
+                        };
+                    }
+                }
+
+                async function loadExistingGrams() {
+                    try {
+                        const res = await fetch(`${BACKEND_BASE}/api/producer/grams`);
+                        const data = await res.json().catch(() => ({}));
+
+                        if (!res.ok || !data.ok || !Array.isArray(data.grams)) {
+                            console.error('Failed to fetch existing grams:', res.status, data);
+                            return;
+                        }
+
+                        existingGrams = data.grams;
+                        gramsCurrentPage = 1;
+                        renderExistingGrams();
+                    } catch (e) {
+                        console.error('Error loading existing grams:', e);
+                    }
+                }
+
 
                 renderUploaded();
 
