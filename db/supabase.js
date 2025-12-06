@@ -229,6 +229,17 @@ class SupabaseDB {
 
         return data || null;
     }
+    async deleteGram(id) {
+        const { error } = await supabase
+            .from('grams')
+            .delete()
+            .eq('id', String(id));
+
+        if (error) {
+            console.error('Supabase deleteGram error:', error);
+            throw error;
+        }
+    }
 
 
     async getAllGrams() {

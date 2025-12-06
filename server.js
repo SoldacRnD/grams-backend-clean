@@ -328,6 +328,24 @@ app.get('/api/producer/grams', async (req, res) => {
         });
     }
 });
+
+app.delete('/api/producer/grams/:id', async (req, res) => {
+    const id = req.params.id;
+    const db = new SupabaseDB();
+
+    try {
+        await db.deleteGram(id);
+        return res.json({ ok: true });
+    } catch (err) {
+        console.error('Failed to delete Gram:', err);
+        return res.status(500).json({
+            ok: false,
+            error: 'Failed to delete Gram',
+            details: err.message || err
+        });
+    }
+});
+
 app.get('/api/producer/grams/by-id/:id', async (req, res) => {
     const id = req.params.id;
     if (!id) {
