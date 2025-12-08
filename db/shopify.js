@@ -2,8 +2,8 @@
 const axios = require('axios');
 
 const SHOPIFY_STORE_DOMAIN = process.env.SHOPIFY_STORE_DOMAIN; // e.g. soldacstudio.myshopify.com
+const SHOPIFY_ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
 const SHOPIFY_ADMIN_VERSION = '2025-07'; // ok for now, adjust when you update
-const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
 
 if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_ACCESS_TOKEN) {
   console.warn('Missing SHOPIFY_STORE_DOMAIN or SHOPIFY_ACCESS_TOKEN env vars');
