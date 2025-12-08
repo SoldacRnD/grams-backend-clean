@@ -7,7 +7,7 @@ const fetch = require('node-fetch');
 const FormData = require('form-data');
 const { SupabaseDB, supabase } = require('./db/supabase'); // using Supabase now
 const newId = require('./utils/id');
-const { listProducts } = require('./db/shopify');
+const { listProducts, createProductForGram } = require('./db/shopify');
 const PORT = process.env.PORT || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 
@@ -180,6 +180,66 @@ app.delete('/api/producer/grams/:gramId/products/:linkId', async (req, res) => {
         res.status(500).json({ ok: false, error: 'GRAM_PRODUCT_UNLINK_ERROR' });
     }
 });
+
+// Create Shopify product from an existing Gram
+// POST /api/producer/grams/:gramId/shopify-product
+// body: { price: number, status?: 'active' | 'draft' }
+app.post('/api/producer/grams/:gramId/shopify-product', async (req, res) => {
+    const { gramId } = req.params;
+    const { price, status = 'active' } = req.body || {};
+
+    if (!price || isNaN(Number(price))) {
+        return res.status(400).json({ ok: false, error: 'INVALID_PRICE' });
+    }
+
+    try {
+        // 1. Load Gram
+        const gram = await db.getGramById(gramId);
+        if (!gram) {
+            return res.status(404).json({ ok: false, error: 'GRAM_NOT_FOUND' });
+        }
+
+        // Optional: prevent creating twice
+        if (gram.shopify_product_id) {
+            return res.status(409).json({
+                ok: false,
+                error: 'PRODUCT_ALREADY_CREATED',
+                product_id: gram.shopify_product_id,
+            });
+        }
+
+        // 2. Create product on Shopify
+        const result = await createProductForGram(gram, { price, status });
+
+        // 3. Save product IDs on Gram
+        const { data, error } = await supabase
+            .from('grams')
+            .update({
+                shopify_product_id: result.product_id,
+                shopify_variant_id: result.variant_id,
+            })
+            .eq('id', gramId)
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        return res.json({
+            ok: true,
+            product_id: result.product_id,
+            variant_id: result.variant_id,
+            gram: data,
+        });
+    } catch (err) {
+        console.error('Error creating Shopify product for gram', err.response?.data || err);
+        return res.status(500).json({
+            ok: false,
+            error: 'CREATE_GRAM_PRODUCT_ERROR',
+            details: err.message || String(err),
+        });
+    }
+});
+
 
 // -----------------------------------------------------------------------------
 // Upload one or more images from Producer UI to Shopify Files

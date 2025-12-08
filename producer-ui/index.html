@@ -226,6 +226,27 @@
             </section>
         </main>
     </div>
+    <!-- Shopify Product Panel -->
+    <section class="panel" id="shopify-product-panel">
+        <h3>Shopify Product (auto-created)</h3>
+
+        <div id="shopify-product-status">
+            <!-- filled by JS -->
+        </div>
+
+        <div class="field">
+            <label for="shopify-product-price">Price</label>
+            <input type="number"
+                   step="0.01"
+                   id="shopify-product-price"
+                   placeholder="e.g. 19.99" />
+            <small>Store currency (e.g. EUR / USD).</small>
+        </div>
+
+        <button type="button" id="create-shopify-product-btn">
+            Create Shopify Product from this Gram
+        </button>
+    </section>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="script.js"></script>

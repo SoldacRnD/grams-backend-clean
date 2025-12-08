@@ -48,5 +48,66 @@ async function listProducts({ search = '', limit = 50 } = {}) {
 
     return products;
 }
+// Create Products For Gram
+
+async function createProductForGram(gram, { price, status = 'active' } = {}) {
+    if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_ADMIN_TOKEN) {
+        throw new Error('Missing Shopify domain or admin token');
+    }
+
+    if (!gram || !gram.id) {
+        throw new Error('Gram is required');
+    }
+
+    const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_ADMIN_VERSION}/products.json`;
+
+    const payload = {
+        product: {
+            title: gram.title || gram.id,
+            body_html: gram.description || '',
+            status, // 'active' or 'draft'
+            handle: (gram.slug || gram.id).toLowerCase(),
+            product_type: 'Gram',
+            vendor: 'A Gram of Art',
+            tags: [
+                'gram-of-art',
+                `gram-id:${gram.id}`
+            ],
+            images: gram.image_url
+                ? [{ src: gram.image_url }]
+                : [],
+            variants: [
+                {
+                    price: String(price),
+                    sku: gram.id,
+                    inventory_management: null, // no inventory management for now
+                }
+            ]
+        }
+    };
+
+    const res = await axios.post(url, payload, {
+        headers: {
+            'X-Shopify-Access-Token': SHOPIFY_ADMIN_TOKEN,
+            'Content-Type': 'application/json',
+        },
+    });
+
+    const product = res.data.product;
+    if (!product) {
+        throw new Error('No product returned from Shopify');
+    }
+
+    const firstVariant = (product.variants && product.variants[0]) || null;
+
+    return {
+        product_id: product.id,
+        variant_id: firstVariant ? firstVariant.id : null,
+        product,
+    };
+}
+
+module.exports = { listProducts, createProductForGram };
+
 
 module.exports = { listProducts };

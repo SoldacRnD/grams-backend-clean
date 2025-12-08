@@ -842,6 +842,29 @@ async function loadExistingGrams() {
     }
 }
 
+function renderShopifyProductStatus(gram) {
+    const box = document.getElementById("shopify-product-status");
+    if (!box) return;
+
+    if (!gram || !gram.shopify_product_id) {
+        box.innerHTML = `
+            <p>No Shopify product linked.</p>
+        `;
+        return;
+    }
+
+    const pid = gram.shopify_product_id;
+    const vid = gram.shopify_variant_id || "(none)";
+
+    box.innerHTML = `
+        <p><strong>Shopify Product ID:</strong> ${pid}</p>
+        <p><strong>Variant ID:</strong> ${vid}</p>
+        <p><a href="https://${SHOP_DOMAIN.replace('https://', '')}/admin/products/${pid}" target="_blank">
+            Open in Shopify Admin
+        </a></p>
+    `;
+}
+
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Producer UI loaded, backend base =', BACKEND_BASE);
@@ -923,6 +946,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // ✅ new helpers
                 populateFormFromGram(gram);
                 syncUploadedSelectionForGram(gram);
+                renderShopifyProductStatus(gram);
+
 
             } catch (e) {
                 console.error("Error loading gram:", e);
@@ -1161,6 +1186,51 @@ document.addEventListener('DOMContentLoaded', () => {
                     alert('Failed to save Gram to backend');
                     return;
                 }
+                // Create Shopify Product Button
+                const createShopProdBtn = document.getElementById("create-shopify-product-btn");
+                if (createShopProdBtn) {
+                    createShopProdBtn.onclick = async () => {
+                        const gramId = document.getElementById("id").value.trim();
+                        const price = document.getElementById("shopify-product-price").value.trim();
+
+                        if (!gramId) {
+                            alert("Load or create a Gram first.");
+                            return;
+                        }
+
+                        if (!price || isNaN(Number(price))) {
+                            alert("Enter a valid price");
+                            return;
+                        }
+
+                        try {
+                            const res = await fetch(
+                                `${BACKEND_BASE}/api/producer/grams/${encodeURIComponent(gramId)}/shopify-product`,
+                                {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ price })
+                                }
+                            );
+
+                            const data = await res.json().catch(() => ({}));
+                            if (!res.ok || !data.ok) {
+                                alert("Failed to create Shopify product: " + (data.error || res.status));
+                                return;
+                            }
+
+                            alert("Shopify product created successfully!");
+
+                            // Update UI with the new product info
+                            renderShopifyProductStatus(data.gram);
+
+                        } catch (err) {
+                            console.error("Error creating Shopify product:", err);
+                            alert("Error creating Shopify product");
+                        }
+                    };
+                }
+
 
                 // ✅ NEW: mark matching upload as saved
                 if (gram.image_url && Array.isArray(lastUploaded) && lastUploaded.length) {
