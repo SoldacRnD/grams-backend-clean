@@ -113,6 +113,30 @@ function setEditingMode(gramOrNull) {
     }
 }
 
+function renderShopifyProductStatus(gram) {
+    const box = document.getElementById("shopify-product-status");
+    if (!box) return;
+
+    if (!gram || !gram.shopify_product_id) {
+        box.innerHTML = `
+            <p>No Shopify product linked.</p>
+        `;
+        return;
+    }
+
+    const pid = gram.shopify_product_id;
+    const vid = gram.shopify_variant_id || "(none)";
+
+    box.innerHTML = `
+        <p><strong>Shopify Product ID:</strong> ${pid}</p>
+        <p><strong>Variant ID:</strong> ${vid}</p>
+        <p>
+          <a href="https://${SHOP_DOMAIN.replace('https://', '')}/admin/products/${pid}" target="_blank">
+            Open in Shopify Admin
+          </a>
+        </p>
+    `;
+}
 
 function syncUploadedSelectionForGram(gram) {
     if (!gram || !gram.image_url || !Array.isArray(lastUploaded) || !lastUploaded.length) {
@@ -841,30 +865,6 @@ async function loadExistingGrams() {
         console.error('Error loading existing grams:', e);
     }
 }
-
-function renderShopifyProductStatus(gram) {
-    const box = document.getElementById("shopify-product-status");
-    if (!box) return;
-
-    if (!gram || !gram.shopify_product_id) {
-        box.innerHTML = `
-            <p>No Shopify product linked.</p>
-        `;
-        return;
-    }
-
-    const pid = gram.shopify_product_id;
-    const vid = gram.shopify_variant_id || "(none)";
-
-    box.innerHTML = `
-        <p><strong>Shopify Product ID:</strong> ${pid}</p>
-        <p><strong>Variant ID:</strong> ${vid}</p>
-        <p><a href="https://${SHOP_DOMAIN.replace('https://', '')}/admin/products/${pid}" target="_blank">
-            Open in Shopify Admin
-        </a></p>
-    `;
-}
-
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Producer UI loaded, backend base =', BACKEND_BASE);
