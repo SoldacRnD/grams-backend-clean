@@ -17,18 +17,15 @@ if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_ADMIN_TOKEN) {
 /**
  * List Shopify products via REST Admin API.
  */
-async function listProducts({ search = '', limit = 20 } = {}) {
+async function listProducts({ search = '', limit = 50 } = {}) {
     const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_ADMIN_VERSION}/products.json`;
 
     const params = {
-        limit,
-        status: 'active',
+        limit: Math.min(limit, 250), // Shopify max per page
         fields: 'id,title,handle,images,variants,status',
+        // optional: only active products
+        // status: 'active',
     };
-
-    if (search) {
-        params.title = search;
-    }
 
     const res = await axios.get(url, {
         headers: {
@@ -38,7 +35,18 @@ async function listProducts({ search = '', limit = 20 } = {}) {
         params,
     });
 
-    return res.data.products || [];
+    let products = res.data.products || [];
+
+    if (search) {
+        const q = search.toLowerCase();
+        products = products.filter((p) => {
+            const title = (p.title || '').toLowerCase();
+            const handle = (p.handle || '').toLowerCase();
+            return title.includes(q) || handle.includes(q);
+        });
+    }
+
+    return products;
 }
 
 module.exports = { listProducts };
