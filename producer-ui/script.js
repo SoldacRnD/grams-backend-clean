@@ -8,10 +8,13 @@ let existingGrams = [];          // 🔹 all grams from backend
 let gramsPageSize = 12;          // 🔹 how many per page
 let gramsCurrentPage = 1;        // 🔹 current page index (1-based)
 let isEditingExistingGram = false; // Editing Existing Gram
+let currentGramId = null; // for linked Shopify products
 
 
 function populateFormFromGram(gram) {
     if (!gram) return;
+    // 🔗 track which Gram is active for products
+    currentGramId = gram.id || null;
     // NEW: enter editing mode
     setEditingMode(gram);
 
@@ -79,6 +82,8 @@ function populateFormFromGram(gram) {
             });
         }
     }
+    // 🔗 finally: load linked Shopify products for this Gram
+    loadLinkedProducts();
 }
 function setEditingMode(gramOrNull) {
     const idInput = document.getElementById("id");
@@ -428,6 +433,274 @@ async function refreshSavedStatusForUploads() {
         }
     }
 }
+// --------------------------------------
+// Linked Shopify Products (Prod UI side)
+// --------------------------------------
+
+// Load existing linked products for the current Gram
+async function loadLinkedProducts() {
+    if (!currentGramId) return;
+
+    try {
+        // NOTE: adjust route prefix if you used /api/producer/...
+        const res = await fetch(`${BACKEND_BASE}/api/producer/grams/${encodeURIComponent(currentGramId)}/products`);
+        const json = await res.json();
+
+        if (!json.ok) {
+            console.error('Failed to load linked products', json);
+            return;
+        }
+
+        renderLinkedProducts(json.links || []);
+    } catch (err) {
+        console.error('Error loading linked products', err);
+    }
+}
+
+// Render the "currently linked" list
+function renderLinkedProducts(links) {
+    const list = document.getElementById('linked-products-list');
+    if (!list) return;
+
+    list.innerHTML = '';
+
+    if (!links || !links.length) {
+        list.innerHTML = '<li>No products linked yet.</li>';
+        return;
+    }
+
+    for (const link of links) {
+        const li = document.createElement('li');
+        li.dataset.linkId = link.id;
+
+        li.innerHTML = `
+      <span>
+        Product ID: ${link.shopify_product_id}
+        ${link.shopify_variant_id ? ` (variant ${link.shopify_variant_id})` : ''}
+      </span>
+      <button type="button" class="unlink-product-btn">Remove</button>
+    `;
+
+        list.appendChild(li);
+    }
+}
+
+// Call backend to search Shopify products by title
+async function searchShopifyProducts(query) {
+    const res = await fetch(
+        `${BACKEND_BASE}/api/shopify/products?search=${encodeURIComponent(query)}`
+    );
+    const json = await res.json();
+    if (!json.ok) {
+        throw new Error(json.error || 'Search failed');
+    }
+    return json.products || [];
+}
+
+// Render Shopify search results (with "Link" buttons)
+function renderShopifySearchResults(products) {
+    const container = document.getElementById('shopify-product-search-results');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (!products.length) {
+        container.innerHTML = '<p>No products found for this search.</p>';
+        return;
+    }
+
+    const list = document.createElement('ul');
+    list.className = 'shopify-product-search-list';
+
+    for (const product of products) {
+        const li = document.createElement('li');
+        li.className = 'shopify-product-search-item';
+
+        const imageHtml = product.image
+            ? `<img src="${product.image}" alt="${product.title}" class="product-thumb" />`
+            : '';
+
+        const variantsOptions = (product.variants || [])
+            .map(
+                (v) =>
+                    `<option value="${v.id}">${v.title} – ${v.price}${v.sku ? ` (${v.sku})` : ''
+                    }</option>`
+            )
+            .join('');
+
+        const variantSelectHtml =
+            (product.variants || []).length > 1
+                ? `
+        <label>
+          Variant:
+          <select class="variant-select" data-product-id="${product.id}">
+            <option value="">Any / default</option>
+            ${variantsOptions}
+          </select>
+        </label>
+      `
+                : '';
+
+        li.innerHTML = `
+      <div class="product-main">
+        ${imageHtml}
+        <div class="product-info">
+          <div class="product-title">${product.title}</div>
+          <div class="product-meta">
+            <span>ID: ${product.id}</span>
+            ${product.handle ? `<span>Handle: ${product.handle}</span>` : ''}
+            <span>Status: ${product.status}</span>
+          </div>
+        </div>
+      </div>
+      <div class="product-actions">
+        ${variantSelectHtml}
+        <button
+          type="button"
+          class="link-product-btn"
+          data-product-id="${product.id}"
+        >
+          Link to this Gram
+        </button>
+      </div>
+    `;
+
+        list.appendChild(li);
+    }
+
+    container.appendChild(list);
+}
+
+// Link selected product (and optional variant) to current Gram
+async function linkProductToGram(shopify_product_id, shopify_variant_id = null) {
+    if (!currentGramId) {
+        alert('No Gram selected (load an existing Gram first).');
+        return;
+    }
+
+    try {
+        // NOTE: adjust route prefix if you used /api/producer/...
+        const res = await fetch(
+            `${BACKEND_BASE}/api/producer/grams/${encodeURIComponent(currentGramId)}/products`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    shopify_product_id,
+                    shopify_variant_id: shopify_variant_id || null,
+                }),
+            }
+        );
+
+        const json = await res.json();
+        if (!json.ok) {
+            console.error('Failed to link product', json);
+            alert('Failed to link product. Check console for details.');
+            return;
+        }
+
+        await loadLinkedProducts();
+    } catch (err) {
+        console.error('Error linking product', err);
+        alert('Error linking product. Check console.');
+    }
+}
+
+// Remove a link by its id
+async function unlinkProduct(linkId) {
+    if (!currentGramId) return;
+
+    try {
+        // NOTE: adjust route prefix if you used /api/producer/...
+        const res = await fetch(
+            `${BACKEND_BASE}/api/producer/grams/${encodeURIComponent(currentGramId)}/products/${encodeURIComponent(
+                linkId
+            )}`,
+            {
+                method: 'DELETE',
+            }
+        );
+
+        const json = await res.json();
+        if (!json.ok) {
+            console.error('Failed to unlink product', json);
+            alert('Failed to remove product link.');
+            return;
+        }
+
+        await loadLinkedProducts();
+    } catch (err) {
+        console.error('Error unlinking product', err);
+        alert('Error removing product link. Check console.');
+    }
+}
+
+// Set up event listeners for search / link / unlink
+function setupLinkedProductsUI() {
+    const searchInput = document.getElementById('shopify-product-search');
+    const searchBtn = document.getElementById('shopify-product-search-btn');
+
+    if (!searchInput || !searchBtn) {
+        console.warn('Linked products UI elements not found');
+        return;
+    }
+
+    async function performSearch() {
+        const query = (searchInput.value || '').trim();
+        if (!query) {
+            alert('Type something to search.');
+            return;
+        }
+
+        try {
+            const products = await searchShopifyProducts(query);
+            renderShopifySearchResults(products);
+        } catch (err) {
+            console.error('Search error', err);
+            alert('Error searching products. Check console.');
+        }
+    }
+
+    searchBtn.addEventListener('click', performSearch);
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            performSearch();
+        }
+    });
+
+    // Delegate clicks for "Link" and "Remove" buttons
+    document.addEventListener('click', (e) => {
+        const target = e.target;
+
+        // Link product
+        if (target.classList.contains('link-product-btn')) {
+            const productId = target.getAttribute('data-product-id');
+            if (!productId) return;
+
+            const container = target.closest('.product-actions');
+            let variantId = null;
+            if (container) {
+                const select = container.querySelector('.variant-select');
+                if (select && select.value) {
+                    variantId = select.value;
+                }
+            }
+
+            linkProductToGram(productId, variantId);
+        }
+
+        // Unlink product
+        if (target.classList.contains('unlink-product-btn')) {
+            const li = target.closest('li[data-link-id]');
+            const linkId = li?.dataset.linkId;
+            if (!linkId) return;
+
+            unlinkProduct(linkId);
+        }
+    });
+}
+
 // 🔹 NEW: global scope
 function renderExistingGrams() {
     const container = document.getElementById("existing-grams");
@@ -572,6 +845,9 @@ async function loadExistingGrams() {
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Producer UI loaded, backend base =', BACKEND_BASE);
+    // 🔗 set up Shopify product search + link/unlink
+    setupLinkedProductsUI();
+
 
     const fileInput = document.getElementById("file-input");
     const uploadBtn = document.getElementById("upload-files");
@@ -586,6 +862,9 @@ document.addEventListener('DOMContentLoaded', () => {
         clearEditBtn.onclick = () => {
             // Exit editing mode
             setEditingMode(null);
+            // 🔗 clear linked products state
+            currentGramId = null;
+            renderLinkedProducts([]); // if panel exists, show "No products linked yet."
 
             // Optional: clear form fields for a brand new gram
             document.getElementById("id").value = "";
@@ -602,6 +881,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderPerks();
         };
     }
+
 
     if (loadBtn) {
         loadBtn.onclick = async () => {

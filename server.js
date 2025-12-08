@@ -5,9 +5,9 @@ const path = require('path');
 const multer = require('multer');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
-const SupabaseDB = require('./db/supabase'); // using Supabase now
+const { SupabaseDB, supabase } = require('./db/supabase'); // using Supabase now
 const newId = require('./utils/id');
-
+const { listProducts } = require('./db/shopify');
 const PORT = process.env.PORT || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 
@@ -77,6 +77,108 @@ app.get('/api/grams/by-slug/:slug', async (req, res) => {
     console.error('Error fetching gram by slug:', err);
     return res.status(500).json({ error: 'Server error' });
   }
+});
+// ----------------------------------------------------------------------------------
+// GET /api/shopify/products?search=beer
+// ----------------------------------------------------------------------------------
+app.get('/api/shopify/products', async (req, res) => {
+    try {
+        const search = (req.query.search || '').trim();
+        const products = await listProducts({ search, limit: 20 });
+
+        // normalize to what the frontend actually needs
+        const normalized = products.map(p => ({
+            id: p.id,
+            title: p.title,
+            handle: p.handle,
+            status: p.status,
+            image: p.images?.[0]?.src || null,
+            variants: (p.variants || []).map(v => ({
+                id: v.id,
+                title: v.title,
+                sku: v.sku,
+                price: v.price,
+            }))
+        }));
+
+        res.json({ ok: true, products: normalized });
+    } catch (err) {
+        console.error('Error fetching Shopify products', err.response?.data || err);
+        res.status(500).json({ ok: false, error: 'SHOPIFY_PRODUCTS_ERROR' });
+    }
+});
+// -----------------------------------------------------------------------------
+// GET /api/grams/:gramId/products
+// -----------------------------------------------------------------------------
+app.get('/api/producer/grams/:gramId/products', async (req, res) => {
+    const { gramId } = req.params;
+
+    try {
+        const { data, error } = await supabase
+            .from('gram_product_links')
+            .select('*')
+            .eq('gram_id', gramId)
+            .order('created_at', { ascending: true });
+
+        if (error) throw error;
+
+        // Optionally: fetch fresh product details from Shopify
+        // For Phase 1, we just return raw IDs; UI will call /api/shopify/products?ids=...
+        res.json({ ok: true, links: data });
+    } catch (err) {
+        console.error('Error loading gram products', err);
+        res.status(500).json({ ok: false, error: 'GRAM_PRODUCTS_LOAD_ERROR' });
+    }
+});
+
+// POST /api/grams/:gramId/products
+// body: { shopify_product_id, shopify_variant_id }
+app.post('/api/producer/grams/:gramId/products', async (req, res) => {
+    const { gramId } = req.params;
+    const { shopify_product_id, shopify_variant_id = null } = req.body;
+
+    if (!shopify_product_id) {
+        return res.status(400).json({ ok: false, error: 'MISSING_PRODUCT_ID' });
+    }
+
+    try {
+        const { data, error } = await supabase
+            .from('gram_product_links')
+            .insert({
+                gram_id: gramId,
+                shopify_product_id,
+                shopify_variant_id,
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        res.json({ ok: true, link: data });
+    } catch (err) {
+        console.error('Error linking product to gram', err);
+        res.status(500).json({ ok: false, error: 'GRAM_PRODUCT_LINK_ERROR' });
+    }
+});
+
+// DELETE /api/grams/:gramId/products/:linkId
+app.delete('/api/producer/grams/:gramId/products/:linkId', async (req, res) => {
+    const { gramId, linkId } = req.params;
+
+    try {
+        const { error } = await supabase
+            .from('gram_product_links')
+            .delete()
+            .eq('id', linkId)
+            .eq('gram_id', gramId);
+
+        if (error) throw error;
+
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('Error unlinking product from gram', err);
+        res.status(500).json({ ok: false, error: 'GRAM_PRODUCT_UNLINK_ERROR' });
+    }
 });
 
 // -----------------------------------------------------------------------------

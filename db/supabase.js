@@ -256,4 +256,5 @@ class SupabaseDB {
     }
 }
 
-module.exports = SupabaseDB;
+module.exports = { SupabaseDB, supabase };
+
