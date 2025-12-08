@@ -7,9 +7,13 @@ let currentImageIndex = -1;
 let existingGrams = [];          // 🔹 all grams from backend
 let gramsPageSize = 12;          // 🔹 how many per page
 let gramsCurrentPage = 1;        // 🔹 current page index (1-based)
+let isEditingExistingGram = false; // Editing Existing Gram
+
 
 function populateFormFromGram(gram) {
     if (!gram) return;
+    // NEW: enter editing mode
+    setEditingMode(gram);
 
     // Fill main form
     document.getElementById("id").value = gram.id || "";
@@ -73,6 +77,33 @@ function populateFormFromGram(gram) {
                 width: 128,
                 height: 128
             });
+        }
+    }
+}
+function setEditingMode(gramOrNull) {
+    const idInput = document.getElementById("id");
+    const banner = document.getElementById("editing-banner");
+    const editingId = document.getElementById("editing-id");
+
+    if (gramOrNull && gramOrNull.id) {
+        isEditingExistingGram = true;
+        if (idInput) {
+            idInput.disabled = true;
+            idInput.classList.add("locked");
+            idInput.value = gramOrNull.id;
+        }
+        if (banner && editingId) {
+            banner.style.display = "flex";
+            editingId.textContent = gramOrNull.id;
+        }
+    } else {
+        isEditingExistingGram = false;
+        if (idInput) {
+            idInput.disabled = false;
+            idInput.classList.remove("locked");
+        }
+        if (banner) {
+            banner.style.display = "none";
         }
     }
 }
@@ -338,6 +369,10 @@ function renderUploaded() {
                     // fall through to "new gram" behavior
                 }
             }
+            // Default behavior for NEW grams (no existing backend record yet)
+            if (!f.saved) {
+                setEditingMode(null);
+            }
 
             // Default behavior for NEW grams (no existing backend record yet)
             if (imageInput && finalUrl) {
@@ -545,8 +580,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveBtn = document.getElementById("save");
     const copyBtn = document.getElementById("copy");
     const statusEl = document.getElementById("upload-status");
-
     const loadBtn = document.getElementById("load-gram");
+    const clearEditBtn = document.getElementById("editing-clear");
+    if (clearEditBtn) {
+        clearEditBtn.onclick = () => {
+            // Exit editing mode
+            setEditingMode(null);
+
+            // Optional: clear form fields for a brand new gram
+            document.getElementById("id").value = "";
+            document.getElementById("title").value = "";
+            document.getElementById("image").value = "";
+            document.getElementById("desc").value = "";
+            document.getElementById("slug").value = "";
+            document.getElementById("nfc").value = "";
+            document.getElementById("share").value = "";
+            document.getElementById("nfcurl").value = "";
+            document.getElementById("json").value = "";
+
+            currentPerks = [];
+            renderPerks();
+        };
+    }
 
     if (loadBtn) {
         loadBtn.onclick = async () => {

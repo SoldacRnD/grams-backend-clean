@@ -96,6 +96,27 @@ button {
     font-size: 0.85rem;
     color: #444;
 }
+.editing-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #fff8e1;
+    border: 1px solid #ffd54f;
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin-bottom: 10px;
+    font-size: 13px;
+}
+
+    .editing-banner #editing-label {
+        color: #8d6e00;
+    }
+
+input#id.locked {
+    background: #f5f5f5;
+    color: #555;
+}
+
 
 .uploaded-list {
     margin-top: 8px;

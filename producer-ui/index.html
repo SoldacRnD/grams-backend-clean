@@ -13,7 +13,6 @@
         <!-- LEFT: Image Upload + Gallery -->
         <aside class="sidebar">
             <h2>Images</h2>
-            ... existing upload UI ...
             <p>Select one or more image files and upload them to Shopify Files. Then click an image to start configuring its Gram.</p>
 
             <label for="file-input">Image files</label>
@@ -31,6 +30,10 @@
 
         <!-- RIGHT: Gram editor -->
         <main class="main">
+            <div id="editing-banner" class="editing-banner" style="display:none;">
+                <span id="editing-label">Editing existing gram: <strong id="editing-id"></strong></span>
+                <button id="editing-clear" type="button">Start new Gram</button>
+            </div>
             <!-- Input section -->
             <section class="section">
                 <h2>Load existing Gram</h2>
