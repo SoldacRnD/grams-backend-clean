@@ -4,10 +4,7 @@ const axios = require('axios');
 const SHOPIFY_STORE_DOMAIN =
     process.env.SHOPIFY_STORE_DOMAIN || process.env.SHOPIFY_SHOP_DOMAIN; // e.g. soldacstudio.myshopify.com
 
-// Re-use the same token you already use for GraphQL uploads
-const SHOPIFY_ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
-
-// Use same version as GraphQL
+const SHOPIFY_ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;           // same token you use for GraphQL
 const SHOPIFY_ADMIN_VERSION = '2025-01';
 
 if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_ADMIN_TOKEN) {
@@ -16,15 +13,15 @@ if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_ADMIN_TOKEN) {
 
 /**
  * List Shopify products via REST Admin API.
+ * Fetches a page of products, then optionally filters by title/handle.
  */
 async function listProducts({ search = '', limit = 50 } = {}) {
     const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_ADMIN_VERSION}/products.json`;
 
     const params = {
-        limit: Math.min(limit, 250), // Shopify max per page
+        limit: Math.min(limit, 250),
         fields: 'id,title,handle,images,variants,status',
-        // optional: only active products
-        // status: 'active',
+        // status: 'active', // optional
     };
 
     const res = await axios.get(url, {
@@ -48,8 +45,11 @@ async function listProducts({ search = '', limit = 50 } = {}) {
 
     return products;
 }
-// Create Products For Gram
 
+/**
+ * Create a Shopify product for a given Gram.
+ * Returns { product_id, variant_id, product }.
+ */
 async function createProductForGram(gram, { price, status = 'active' } = {}) {
     if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_ADMIN_TOKEN) {
         throw new Error('Missing Shopify domain or admin token');
@@ -71,19 +71,17 @@ async function createProductForGram(gram, { price, status = 'active' } = {}) {
             vendor: 'A Gram of Art',
             tags: [
                 'gram-of-art',
-                `gram-id:${gram.id}`
+                `gram-id:${gram.id}`,
             ],
-            images: gram.image_url
-                ? [{ src: gram.image_url }]
-                : [],
+            images: gram.image_url ? [{ src: gram.image_url }] : [],
             variants: [
                 {
                     price: String(price),
                     sku: gram.id,
-                    inventory_management: null, // no inventory management for now
-                }
-            ]
-        }
+                    inventory_management: null, // no inventory tracking for now
+                },
+            ],
+        },
     };
 
     const res = await axios.post(url, payload, {
@@ -107,7 +105,8 @@ async function createProductForGram(gram, { price, status = 'active' } = {}) {
     };
 }
 
-module.exports = { listProducts, createProductForGram };
-
-
-module.exports = { listProducts };
+// 👈 THIS IS CRUCIAL: export BOTH functions as properties
+module.exports = {
+    listProducts,
+    createProductForGram,
+};
