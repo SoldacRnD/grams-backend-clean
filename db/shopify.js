@@ -50,35 +50,63 @@ async function listProducts({ search = '', limit = 50 } = {}) {
  * Create a Shopify product for a given Gram.
  * Returns { product_id, variant_id, product }.
  */
-async function createProductForGram(gram, { price, status = 'active' } = {}) {
+async function createProductForGram(
+    gram,
+    {
+        price,
+        status = 'active',
+        vendor = 'A Gram of Art',
+        product_type = 'Gram',
+        extra_tags = [],
+        seo_title = null,
+        seo_description = null,
+        extra_images = [],
+        collection_ids = [],
+    } = {}
+) {
     if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_ADMIN_TOKEN) {
         throw new Error('Missing Shopify domain or admin token');
     }
-
     if (!gram || !gram.id) {
         throw new Error('Gram is required');
     }
 
     const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_ADMIN_VERSION}/products.json`;
 
+    // base tags for all Gram products
+    const baseTags = [
+        'gram-of-art',
+        `gram-id:${gram.id}`,
+    ];
+    const tags = [...baseTags, ...extra_tags];
+
+    // Build images array: main gram image + any extraImages
+    const images = [];
+    if (gram.image_url) {
+        images.push({ src: gram.image_url });
+    }
+    for (const src of extra_images) {
+        images.push({ src });
+    }
+
     const payload = {
         product: {
             title: gram.title || gram.id,
             body_html: gram.description || '',
-            status, // 'active' or 'draft'
+            status,
             handle: (gram.slug || gram.id).toLowerCase(),
-            product_type: 'Gram',
-            vendor: 'A Gram of Art',
-            tags: [
-                'gram-of-art',
-                `gram-id:${gram.id}`,
-            ],
-            images: gram.image_url ? [{ src: gram.image_url }] : [],
+            product_type,
+            vendor,
+            tags,
+            images,
+            // SEO fields – Shopify REST supports these meta fields on product
+            metafields_global_title_tag: seo_title || undefined,
+            metafields_global_description_tag: seo_description || undefined,
             variants: [
                 {
                     price: String(price),
                     sku: gram.id,
-                    inventory_management: null, // no inventory tracking for now
+                    inventory_management: null,
                 },
             ],
         },
@@ -97,10 +125,44 @@ async function createProductForGram(gram, { price, status = 'active' } = {}) {
     }
 
     const firstVariant = (product.variants && product.variants[0]) || null;
+    const product_id = product.id;
+    const variant_id = firstVariant ? firstVariant.id : null;
+
+    // Attach product to any manual collections (via Collects)
+    if (collection_ids && collection_ids.length) {
+        const collectsUrl = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_ADMIN_VERSION}/collects.json`;
+
+        for (const collectionId of collection_ids) {
+            try {
+                await axios.post(
+                    collectsUrl,
+                    {
+                        collect: {
+                            collection_id: collectionId,
+                            product_id: product_id,
+                        },
+                    },
+                    {
+                        headers: {
+                            'X-Shopify-Access-Token': SHOPIFY_ADMIN_TOKEN,
+                            'Content-Type': 'application/json',
+                        },
+                    }
+                );
+            } catch (err) {
+                console.error(
+                    'Failed to attach product to collection',
+                    collectionId,
+                    err.response?.data || err
+                );
+                // not fatal – we still return the product; you can handle collections later
+            }
+        }
+    }
 
     return {
-        product_id: product.id,
-        variant_id: firstVariant ? firstVariant.id : null,
+        product_id,
+        variant_id,
         product,
     };
 }

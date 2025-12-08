@@ -186,20 +186,28 @@ app.delete('/api/producer/grams/:gramId/products/:linkId', async (req, res) => {
 // body: { price: number, status?: 'active' | 'draft' }
 app.post('/api/producer/grams/:gramId/shopify-product', async (req, res) => {
     const { gramId } = req.params;
-    const { price, status = 'active' } = req.body || {};
+    const {
+        price,
+        status = 'active',
+        vendor = 'A Gram of Art',
+        product_type = 'Gram',
+        extra_tags = [],
+        seo_title = null,
+        seo_description = null,
+        extra_images = [],
+        collection_ids = [],
+    } = req.body || {};
 
     if (!price || isNaN(Number(price))) {
         return res.status(400).json({ ok: false, error: 'INVALID_PRICE' });
     }
 
     try {
-        // 1. Load Gram
         const gram = await db.getGramById(gramId);
         if (!gram) {
             return res.status(404).json({ ok: false, error: 'GRAM_NOT_FOUND' });
         }
 
-        // Optional: prevent creating twice
         if (gram.shopify_product_id) {
             return res.status(409).json({
                 ok: false,
@@ -208,10 +216,32 @@ app.post('/api/producer/grams/:gramId/shopify-product', async (req, res) => {
             });
         }
 
-        // 2. Create product on Shopify
-        const result = await createProductForGram(gram, { price, status });
+        // 1) create product on Shopify
+        const {
+            price,
+            status = 'active',
+            vendor = 'A Gram of Art',
+            product_type = 'Gram',
+            extra_tags = [],
+            seo_title = null,
+            seo_description = null,
+            extra_images = [],
+            collection_ids = [],
+        } = req.body || {};
 
-        // 3. Save product IDs on Gram
+        const result = await createProductForGram(gram, {
+            price,
+            status,
+            vendor,
+            product_type,
+            extra_tags,
+            seo_title,
+            seo_description,
+            extra_images,
+            collection_ids, // we'll use this after the product is created
+        });
+
+        // 2) store product / variant IDs on Gram
         const { data, error } = await supabase
             .from('grams')
             .update({
@@ -231,7 +261,10 @@ app.post('/api/producer/grams/:gramId/shopify-product', async (req, res) => {
             gram: data,
         });
     } catch (err) {
-        console.error('Error creating Shopify product for gram', err.response?.data || err);
+        console.error(
+            'Error creating Shopify product for gram',
+            err.response?.data || err
+        );
         return res.status(500).json({
             ok: false,
             error: 'CREATE_GRAM_PRODUCT_ERROR',
@@ -239,6 +272,7 @@ app.post('/api/producer/grams/:gramId/shopify-product', async (req, res) => {
         });
     }
 });
+
 
 
 // -----------------------------------------------------------------------------

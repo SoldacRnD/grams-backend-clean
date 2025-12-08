@@ -9,6 +9,8 @@ let gramsPageSize = 12;          // 🔹 how many per page
 let gramsCurrentPage = 1;        // 🔹 current page index (1-based)
 let isEditingExistingGram = false; // Editing Existing Gram
 let currentGramId = null; // for linked Shopify products
+let extraProductImages = []; // { originalName, url, shopifyId, status }
+
 
 
 function populateFormFromGram(gram) {
@@ -288,6 +290,31 @@ async function fetchNextId() {
         console.error('Error fetching next ID:', e);
         return null;
     }
+}
+function renderExtraProductImages() {
+    const container = document.getElementById("extra-product-images-preview");
+    if (!container) return;
+
+    if (!extraProductImages.length) {
+        container.innerHTML = "<p>No extra product images uploaded.</p>";
+        return;
+    }
+
+    container.innerHTML = extraProductImages
+        .map(img => {
+            const safeName = img.originalName || "(image)";
+            const url = img.url || "";
+            return `
+        <div class="extra-image-item">
+          ${url ? `<img src="${url}" alt="${safeName}" class="extra-image-thumb" />` : ""}
+          <div class="extra-image-meta">
+            <span>${safeName}</span>
+            ${url ? `<span class="small-url">${url}</span>` : ""}
+          </div>
+        </div>
+      `;
+        })
+        .join("");
 }
 
 function renderPerks() {
@@ -874,6 +901,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const fileInput = document.getElementById("file-input");
     const uploadBtn = document.getElementById("upload-files");
+    const extraProductFileInput = document.getElementById("extra-product-file-input");
+    const uploadExtraProductBtn = document.getElementById("upload-extra-product-images");
     const addPerkBtn = document.getElementById("add-perk");
     const generateBtn = document.getElementById("generate");
     const saveBtn = document.getElementById("save");
@@ -894,29 +923,77 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (!price || isNaN(Number(price))) {
-                alert("Enter a valid price");
+                alert("Enter a valid numeric price.");
                 return;
             }
 
+            const statusSelect = document.getElementById("shopify-product-status-select");
+            const status = statusSelect ? statusSelect.value : "active";
+
+            const vendorInput = document.getElementById("shopify-product-vendor");
+            const vendor = (vendorInput?.value.trim()) || "A Gram of Art";
+
+            const typeInput = document.getElementById("shopify-product-type");
+            const product_type = (typeInput?.value.trim()) || "Gram";
+
+            const tagsInput = document.getElementById("shopify-product-tags");
+            const extraTags = (tagsInput?.value || "")
+                .split(",")
+                .map(t => t.trim())
+                .filter(Boolean);
+
+            const seoTitleInput = document.getElementById("shopify-seo-title");
+            const seo_descriptionInput = document.getElementById("shopify-seo-description");
+            const seo_title = seoTitleInput?.value.trim() || null;
+            const seo_description = seo_descriptionInput?.value.trim() || null;
+
+            const extraImagesInput = document.getElementById("shopify-extra-images");
+            const extra_images = (extraImagesInput?.value || "")
+                .split(",")
+                .map(u => u.trim())
+                .filter(Boolean);
+
+            const collectionsInput = document.getElementById("shopify-collection-ids");
+            const collection_ids = (collectionsInput?.value || "")
+                .split(",")
+                .map(id => id.trim())
+                .filter(Boolean); // keep as strings; backend can cast if needed
+
             try {
+                const extra_images = extraProductImages
+                    .map(img => img.url)
+                    .filter(Boolean);
                 const res = await fetch(
                     `${BACKEND_BASE}/api/producer/grams/${encodeURIComponent(gramId)}/shopify-product`,
                     {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ price })
+                        body: JSON.stringify({
+                            price,
+                            status,
+                            vendor,
+                            product_type,
+                            extra_tags: extraTags,
+                            seo_title,
+                            seo_description,
+                            extra_images,
+                            collection_ids,
+                        })
                     }
                 );
 
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok || !data.ok) {
-                    alert("Failed to create Shopify product: " + (data.error || res.status));
+                    alert(
+                        "Failed to create Shopify product: " +
+                        (data.error || res.status) +
+                        (data.details ? "\nDetails: " + data.details : "")
+                    );
+                    console.error("Create Shopify product error:", data);
                     return;
                 }
 
                 alert("Shopify product created successfully!");
-
-                // Update UI with the new product info
                 renderShopifyProductStatus(data.gram);
 
             } catch (err) {
@@ -925,6 +1002,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
     }
+
     if (clearEditBtn) {
         clearEditBtn.onclick = () => {
             // Exit editing mode
@@ -1070,6 +1148,55 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
     }
+
+    // Upload Extra Product Media
+    if (uploadExtraProductBtn && extraProductFileInput) {
+        uploadExtraProductBtn.onclick = async () => {
+            const files = extraProductFileInput.files;
+            if (!files || !files.length) {
+                alert("Select one or more image files for extra product images.");
+                return;
+            }
+
+            const formData = new FormData();
+            Array.from(files).forEach(f => formData.append("files", f));
+
+            try {
+                const res = await fetch(`${BACKEND_BASE}/api/producer/upload-images`, {
+                    method: "POST",
+                    body: formData,
+                });
+
+                const data = await res.json().catch(() => ({}));
+                console.log("Extra images upload response:", res.status, data);
+
+                if (!res.ok || !data.ok || !Array.isArray(data.files)) {
+                    alert("Failed to upload extra images: " + (data.error || res.status));
+                    return;
+                }
+
+                // Append to our extraProductImages list
+                data.files.forEach(f => {
+                    extraProductImages.push({
+                        originalName: f.originalName,
+                        url: f.url,
+                        shopifyId: f.shopifyId,
+                        status: f.status,
+                    });
+                });
+
+                renderExtraProductImages();
+
+                // Optional: clear file input
+                extraProductFileInput.value = "";
+
+            } catch (err) {
+                console.error("Extra product images upload error:", err);
+                alert("Error uploading extra product images.");
+            }
+        };
+    }
+
 
     // Add perks
     if (addPerkBtn) {
