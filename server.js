@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 const app = express();
 // Import from /notion because you have no /routes folder
-const { router: checkpointsRouter } = require('./notion/checkpoints');
+const checkpointsRouter = require('./notion/checkpoints');
 app.use('/api/checkpoints', checkpointsRouter);
 // Middleware
 app.use(cors());
