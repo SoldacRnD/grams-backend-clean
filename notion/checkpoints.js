@@ -60,11 +60,16 @@ async function createCheckpointPage({ title, summary, date = new Date() }) {
 // ────────────────────────────────────────────────
 
 // Create a new checkpoint (Supabase → Notion)
+
 router.post('/', async (req, res) => {
     const { title, summary, status = 'Planned' } = req.body;
 
     try {
+        console.log('📌 Creating checkpoint in Notion:', { title, summary });
+
         const notionPage = await createCheckpointPage({ title, summary });
+
+        console.log('✅ Notion page created:', notionPage.id);
 
         const { data, error } = await supabase
             .from('checkpoints')
@@ -78,6 +83,8 @@ router.post('/', async (req, res) => {
             ])
             .select()
             .single();
+    // ...
+
 
         if (error) throw error;
 
