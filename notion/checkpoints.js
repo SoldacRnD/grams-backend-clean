@@ -169,4 +169,7 @@ router.get('/sync', async (req, res) => {
     }
 });
 
-module.exports = router;
+module.exports = {
+    createCheckpointPage,
+};
+
