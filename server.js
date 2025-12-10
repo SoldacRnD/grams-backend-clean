@@ -1,4 +1,3 @@
-require('dotenv').config(); // ✅ must be first line
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
