@@ -20,13 +20,14 @@ async function createCheckpointPage({ title, summary, date = new Date() }) {
   const response = await notion.pages.create({
     parent: { database_id: NOTION_CHECKPOINT_DB_ID },
     properties: {
-      Name: {
-        title: [
-          {
-            text: { content: title },
-          },
-        ],
-      },
+        Name: {
+            title: [
+                {
+                    type: "text",
+                    text: { content: title },
+                },
+            ],
+        },
       Date: {
         date: {
           start: isoDate,
