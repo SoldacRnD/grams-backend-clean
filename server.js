@@ -693,6 +693,29 @@ app.get('/api/producer/next-id', async (req, res) => {
     }
 });
 
+// ----------------------------------------------------------------------------
+// OpenAI API
+// ----------------------------------------------------------------------------
+app.get('/internal/test/openai', async (req, res) => {
+    try {
+        const OpenAI = require('openai');
+        const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+        const response = await client.chat.completions.create({
+            model: 'gpt-4.1-mini',
+            messages: [
+                { role: 'system', content: 'You are an assistant.' },
+                { role: 'user', content: 'Say OK if this connection works.' }
+            ]
+        });
+
+        res.json({ ok: true, reply: response.choices[0].message.content });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ ok: false, error: err.message });
+    }
+});
+
 
 // -----------------------------------------------------------------------------
 // Claim a Gram for a given owner (customer)
