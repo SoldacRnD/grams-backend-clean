@@ -25,6 +25,10 @@ const notionText = (text) => [
 
 // Create a Notion page dynamically (schema-aware)
 async function createCheckpointPage({ title, summary, date = new Date() }) {
+    if (!NOTION_TOKEN || !NOTION_CHECKPOINT_DB_ID) {
+        throw new Error('Notion integration is not configured');
+    }
+
     const isoDate = date.toISOString().split('T')[0];
 
     const db = await notion.databases.retrieve({
@@ -121,7 +125,9 @@ router.put('/:id', async (req, res) => {
         const properties = {};
         if (titleProp) properties[titleProp] = { title: notionText(title) };
         if (summaryProp) properties[summaryProp] = { rich_text: notionText(summary) };
-        if (statusProp) properties[statusProp] = { select: { name: status } };
+        if (statusProp && status) {
+            properties[statusProp] = { select: { name: status } };
+        }
 
         await notion.pages.update({ page_id: pageId, properties });
 
@@ -157,6 +163,7 @@ router.get('/', async (_req, res) => {
         if (error) throw error;
         res.json({ success: true, checkpoints: data });
     } catch (err) {
+        console.error('❌ Error listing checkpoints:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -170,9 +177,16 @@ router.get('/sync', async (_req, res) => {
 
         for (const page of notionPages.results) {
             const props = page.properties;
-            const title = props.Title?.title?.[0]?.plain_text || '';
-            const summary = props.Summary?.rich_text?.[0]?.plain_text || '';
-            const status = props.Status?.select?.name || 'Planned';
+
+            // These assume specific property names; adjust if different in your DB:
+            const title =
+                props.Title?.title?.[0]?.plain_text ||
+                props.Name?.title?.[0]?.plain_text ||
+                '';
+            const summary =
+                props.Summary?.rich_text?.[0]?.plain_text || '';
+            const status =
+                props.Status?.select?.name || 'Planned';
 
             await supabase.from('checkpoints').upsert({
                 title,
@@ -187,10 +201,12 @@ router.get('/sync', async (_req, res) => {
         console.error('❌ Sync error:', err);
         res.status(500).json({ error: err.message });
     }
-    // ✅ Export both clearly in one object
-    module.exports = {
-        router,                // Express router
-        createCheckpointPage,  // direct helper for Notion plugin
-    };
-
 });
+
+// ────────────────────────────────────────────────
+// ✅ Export router + helper
+// ────────────────────────────────────────────────
+module.exports = {
+    router,               // Express router
+    createCheckpointPage, // Notion helper
+};
