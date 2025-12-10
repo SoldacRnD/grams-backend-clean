@@ -715,6 +715,50 @@ app.get('/internal/test/openai', async (req, res) => {
         res.status(500).json({ ok: false, error: err.message });
     }
 });
+// ------------------------------------------------------------------
+// internal route to create a Notion checkpoint using ChatGPT summary
+// ------------------------------------------------------------------
+app.post('/internal/checkpoint', async (req, res) => {
+    try {
+        const { Client } = require('@notionhq/client');
+        const notion = new Client({ auth: process.env.NOTION_TOKEN });
+
+        const OpenAI = require('openai');
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+        const { text } = req.body;
+
+        if (!text) {
+            return res.status(400).json({ ok: false, error: 'text required' });
+        }
+
+        // Let ChatGPT summarize automatically
+        const summaryRes = await openai.chat.completions.create({
+            model: 'gpt-4.1-mini',
+            messages: [
+                { role: 'system', content: 'Summarize the following text professionally.' },
+                { role: 'user', content: text }
+            ]
+        });
+
+        const summary = summaryRes.choices[0].message.content;
+
+        // Add to Notion database
+        const page = await notion.pages.create({
+            parent: { database_id: process.env.NOTION_CHECKPOINT_DB_ID },
+            properties: {
+                Name: { title: [{ text: { content: "Auto Checkpoint" } }] },
+                Summary: { rich_text: [{ text: { content: summary } }] },
+                Date: { date: { start: new Date().toISOString() } }
+            }
+        });
+
+        res.json({ ok: true, notionPageId: page.id, summary });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ ok: false, error: err.message });
+    }
+});
 
 
 // -----------------------------------------------------------------------------
