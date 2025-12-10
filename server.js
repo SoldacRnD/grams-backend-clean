@@ -16,6 +16,8 @@ const { createCheckpointPage } = require('./notion/checkpoints');
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+app.use('/legal', express.static(path.join(__dirname, 'public')));
+
 
 const upload = multer({ storage: multer.memoryStorage() });
 
