@@ -187,10 +187,10 @@ router.get('/sync', async (_req, res) => {
         console.error('❌ Sync error:', err);
         res.status(500).json({ error: err.message });
     }
-});
+    // ✅ Export both clearly in one object
+    module.exports = {
+        router,                // Express router
+        createCheckpointPage,  // direct helper for Notion plugin
+    };
 
-// ────────────────────────────────────────────────
-// ✅ Export router
-// ────────────────────────────────────────────────
-module.exports = router;
-module.exports.createCheckpointPage = createCheckpointPage;
+});
