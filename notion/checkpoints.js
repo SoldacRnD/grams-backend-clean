@@ -169,7 +169,5 @@ router.get('/sync', async (req, res) => {
     }
 });
 
-module.exports = {
-    createCheckpointPage,
-};
-
+// ✅ Correct export (use the Express router)
+module.exports = router;
