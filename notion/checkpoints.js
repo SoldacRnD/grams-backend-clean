@@ -1,35 +1,68 @@
-// routes/checkpoints.js
+// notion/checkpoints.js
+require('dotenv').config();
 const express = require('express');
 const router = express.Router();
 const { supabase } = require('../db/supabase');
-const { createCheckpointPage } = require('../notion/checkpoints');
 const { Client } = require('@notionhq/client');
 
+// ────────────────────────────────────────────────
+// 🔧 Environment + Notion setup
+// ────────────────────────────────────────────────
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
 const NOTION_CHECKPOINT_DB_ID = process.env.NOTION_CHECKPOINT_DB_ID;
 
+if (!NOTION_TOKEN || !NOTION_CHECKPOINT_DB_ID) {
+    console.warn('⚠️ Notion integration not fully configured (missing env vars)');
+}
+
 const notion = new Client({ auth: NOTION_TOKEN });
 
-// Utility helper to wrap text in Notion format
+// ────────────────────────────────────────────────
+// 🧩 Helpers
+// ────────────────────────────────────────────────
 const notionText = (text) => [
-    {
-        type: 'text',
-        text: { content: text || '' },
-    },
+    { type: 'text', text: { content: text || '' } },
 ];
 
-// ✅ Create a new checkpoint (Supabase → Notion)
+// Create a Notion page dynamically (schema-aware)
+async function createCheckpointPage({ title, summary, date = new Date() }) {
+    const isoDate = date.toISOString().split('T')[0];
+
+    const db = await notion.databases.retrieve({
+        database_id: NOTION_CHECKPOINT_DB_ID,
+    });
+
+    const props = db.properties || {};
+    const titleProp = Object.keys(props).find((k) => props[k].type === 'title');
+    const summaryProp = Object.keys(props).find(
+        (k) => props[k].type === 'rich_text' && k.toLowerCase().includes('summary')
+    );
+    const dateProp = Object.keys(props).find((k) => props[k].type === 'date');
+
+    const properties = {};
+    if (titleProp) properties[titleProp] = { title: notionText(title) };
+    if (summaryProp) properties[summaryProp] = { rich_text: notionText(summary) };
+    if (dateProp) properties[dateProp] = { date: { start: isoDate } };
+
+    const page = await notion.pages.create({
+        parent: { database_id: NOTION_CHECKPOINT_DB_ID },
+        properties,
+    });
+
+    return page;
+}
+
+// ────────────────────────────────────────────────
+// 🚀 Routes
+// ────────────────────────────────────────────────
+
+// Create a new checkpoint (Supabase → Notion)
 router.post('/', async (req, res) => {
     const { title, summary, status = 'Planned' } = req.body;
 
     try {
-        // 1. Create the Notion page dynamically (using your helper)
-        const notionPage = await createCheckpointPage({
-            title,
-            summary,
-        });
+        const notionPage = await createCheckpointPage({ title, summary });
 
-        // 2. Insert checkpoint record in Supabase
         const { data, error } = await supabase
             .from('checkpoints')
             .insert([
@@ -51,18 +84,17 @@ router.post('/', async (req, res) => {
             notion_page_id: notionPage.id,
         });
     } catch (err) {
-        console.error('❌ Error creating checkpoint:', err.message);
+        console.error('❌ Error creating checkpoint:', err);
         res.status(500).json({ error: err.message });
     }
 });
 
-// ✅ Update existing checkpoint (bi-directional)
+// Update existing checkpoint (bi-directional)
 router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { title, summary, status } = req.body;
 
     try {
-        // Fetch existing checkpoint from Supabase
         const { data: checkpoint, error: fetchError } = await supabase
             .from('checkpoints')
             .select('notion_page_id')
@@ -74,34 +106,26 @@ router.put('/:id', async (req, res) => {
         }
 
         const pageId = checkpoint.notion_page_id;
-
-        // Update Notion page
         const db = await notion.databases.retrieve({
             database_id: NOTION_CHECKPOINT_DB_ID,
         });
         const props = db.properties || {};
-        const titlePropName = Object.keys(props).find((key) => props[key].type === 'title');
-        const summaryPropName = Object.keys(props).find(
-            (key) => props[key].type === 'rich_text' && key.toLowerCase() === 'summary'
+
+        const titleProp = Object.keys(props).find((k) => props[k].type === 'title');
+        const summaryProp = Object.keys(props).find(
+            (k) => props[k].type === 'rich_text' && k.toLowerCase().includes('summary')
         );
-        const statusPropName = Object.keys(props).find(
-            (key) => props[key].type === 'select' && key.toLowerCase() === 'status'
+        const statusProp = Object.keys(props).find(
+            (k) => props[k].type === 'select' && k.toLowerCase().includes('status')
         );
 
         const properties = {};
-        if (titlePropName)
-            properties[titlePropName] = { title: notionText(title) };
-        if (summaryPropName)
-            properties[summaryPropName] = { rich_text: notionText(summary) };
-        if (statusPropName)
-            properties[statusPropName] = { select: { name: status } };
+        if (titleProp) properties[titleProp] = { title: notionText(title) };
+        if (summaryProp) properties[summaryProp] = { rich_text: notionText(summary) };
+        if (statusProp) properties[statusProp] = { select: { name: status } };
 
-        await notion.pages.update({
-            page_id: pageId,
-            properties,
-        });
+        await notion.pages.update({ page_id: pageId, properties });
 
-        // Update Supabase record
         const { data: updated, error: updateError } = await supabase
             .from('checkpoints')
             .update({
@@ -123,8 +147,8 @@ router.put('/:id', async (req, res) => {
     }
 });
 
-// ✅ List all checkpoints
-router.get('/', async (req, res) => {
+// List all checkpoints
+router.get('/', async (_req, res) => {
     try {
         const { data, error } = await supabase
             .from('checkpoints')
@@ -132,15 +156,14 @@ router.get('/', async (req, res) => {
             .order('created_at', { ascending: false });
 
         if (error) throw error;
-
         res.json({ success: true, checkpoints: data });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// ✅ (Optional) CRON Sync – Notion → Supabase
-router.get('/sync', async (req, res) => {
+// Sync Notion → Supabase
+router.get('/sync', async (_req, res) => {
     try {
         const notionPages = await notion.databases.query({
             database_id: NOTION_CHECKPOINT_DB_ID,
@@ -152,14 +175,12 @@ router.get('/sync', async (req, res) => {
             const summary = props.Summary?.rich_text?.[0]?.plain_text || '';
             const status = props.Status?.select?.name || 'Planned';
 
-            await supabase
-                .from('checkpoints')
-                .upsert({
-                    title,
-                    summary,
-                    status,
-                    notion_page_id: page.id,
-                });
+            await supabase.from('checkpoints').upsert({
+                title,
+                summary,
+                status,
+                notion_page_id: page.id,
+            });
         }
 
         res.json({ success: true, message: '✅ Notion → Supabase sync complete' });
@@ -169,5 +190,7 @@ router.get('/sync', async (req, res) => {
     }
 });
 
-// ✅ Correct export (use the Express router)
+// ────────────────────────────────────────────────
+// ✅ Export router
+// ────────────────────────────────────────────────
 module.exports = router;

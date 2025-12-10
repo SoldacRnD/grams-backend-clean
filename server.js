@@ -11,7 +11,9 @@ const newId = require('./utils/id');
 const { listProducts, createProductForGram } = require('./db/shopify');
 const PORT = process.env.PORT || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
+// Import from /notion because you have no /routes folder
 const checkpointsRouter = require('./notion/checkpoints');
+app.use('/api/checkpoints', checkpointsRouter);
 
 
 const app = express();
