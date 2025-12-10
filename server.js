@@ -10,14 +10,14 @@ const newId = require('./utils/id');
 const { listProducts, createProductForGram } = require('./db/shopify');
 const PORT = process.env.PORT || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
-const { createCheckpointPage } = require('./notion/checkpoints');
+const checkpointsRouter = require('./routes/checkpoints');
 
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 app.use('/legal', express.static(path.join(__dirname, 'public')));
-
+app.use('/api/checkpoints', checkpointsRouter);
 
 const upload = multer({ storage: multer.memoryStorage() });
 
