@@ -38,43 +38,62 @@ async function createCheckpointPage({
 
     const page = await notion.pages.create({
         parent: { database_id: NOTION_CHECKPOINT_DB_ID },
+
+        // 🧩 Table properties
         properties: {
-            // Column: Title (type: Title)
             Title: {
                 title: [
-                    {
-                        type: 'text',
-                        text: { content: title || '' },
-                    },
+                    { type: 'text', text: { content: title || '' } },
                 ],
             },
-            // Column: Date (type: Date)
             Date: {
                 date: {
                     start: isoDate,
                 },
             },
-            // Column: Summary (type: Text → rich_text in API)
             Summary: {
                 rich_text: [
-                    {
-                        type: 'text',
-                        text: { content: summary || '' },
-                    },
+                    { type: 'text', text: { content: summary || '' } },
                 ],
             },
-            // Column: Status (type: Select)
             Status: {
+                // 👇 important: Status-type property uses "status", not "select"
                 status: status ? { name: status } : null,
             },
         },
 
-        // Detailed page content (body)
+        // 🧱 Page body layout – this is where we make it “nice”
         children: [
+            // Big heading
+            {
+                object: 'block',
+                heading_1: {
+                    rich_text: [
+                        { type: 'text', text: { content: title || '' } },
+                    ],
+                },
+            },
+
+            // Small “meta” paragraph
+            {
+                object: 'block',
+                paragraph: {
+                    rich_text: [
+                        { type: 'text', text: { content: 'Checkpoint in A Gram of Art development timeline.' } },
+                    ],
+                },
+            },
+
+            // Divider
+            { object: 'block', divider: {} },
+
+            // Overview section
             {
                 object: 'block',
                 heading_2: {
-                    rich_text: [{ type: 'text', text: { content: 'Summary' } }],
+                    rich_text: [
+                        { type: 'text', text: { content: 'Overview' } },
+                    ],
                 },
             },
             {
@@ -83,7 +102,107 @@ async function createCheckpointPage({
                     rich_text: [
                         {
                             type: 'text',
-                            text: { content: summary || '' },
+                            text: {
+                                content: summary || 'No overview provided.',
+                            },
+                        },
+                    ],
+                },
+            },
+
+            // Today’s changes section
+            {
+                object: 'block',
+                heading_2: {
+                    rich_text: [
+                        { type: 'text', text: { content: 'What we implemented today' } },
+                    ],
+                },
+            },
+            {
+                object: 'block',
+                bulleted_list_item: {
+                    rich_text: [
+                        {
+                            type: 'text',
+                            text: {
+                                content: 'Notion ↔ backend checkpoint flow stabilized (fields + Status).',
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                object: 'block',
+                bulleted_list_item: {
+                    rich_text: [
+                        {
+                            type: 'text',
+                            text: {
+                                content: 'Detailed checkpoint pages now created automatically from ChatGPT/agent.',
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                object: 'block',
+                bulleted_list_item: {
+                    rich_text: [
+                        {
+                            type: 'text',
+                            text: {
+                                content: 'Shopify multi-media product flow remains working from Producer UI.',
+                            },
+                        },
+                    ],
+                },
+            },
+
+            // Next steps section
+            {
+                object: 'block',
+                heading_2: {
+                    rich_text: [
+                        { type: 'text', text: { content: 'Next steps' } },
+                    ],
+                },
+            },
+            {
+                object: 'block',
+                bulleted_list_item: {
+                    rich_text: [
+                        {
+                            type: 'text',
+                            text: {
+                                content: 'Add full Shopify product editing (status, tags, SEO, etc.) in Producer UI.',
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                object: 'block',
+                bulleted_list_item: {
+                    rich_text: [
+                        {
+                            type: 'text',
+                            text: {
+                                content: 'Start Vendor UI for perk redemption.',
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                object: 'block',
+                bulleted_list_item: {
+                    rich_text: [
+                        {
+                            type: 'text',
+                            text: {
+                                content: 'Implement NFC claim flow animations + customer-facing polish.',
+                            },
                         },
                     ],
                 },
@@ -93,6 +212,7 @@ async function createCheckpointPage({
 
     return page;
 }
+
 
 
 
