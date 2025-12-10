@@ -193,3 +193,4 @@ router.get('/sync', async (_req, res) => {
 // ✅ Export router
 // ────────────────────────────────────────────────
 module.exports = router;
+module.exports.createCheckpointPage = createCheckpointPage;
