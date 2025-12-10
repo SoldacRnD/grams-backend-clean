@@ -10,6 +10,8 @@ const newId = require('./utils/id');
 const { listProducts, createProductForGram } = require('./db/shopify');
 const PORT = process.env.PORT || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
+const { createCheckpointPage } = require('./notion/checkpoints');
+
 
 const app = express();
 app.use(cors());
@@ -732,6 +734,34 @@ app.post('/api/grams/claim', async (req, res) => {
     return res.status(500).json({ error: 'Server error' });
   }
 });
+// -----------------------------------------------------------------------------
+// Notion checkpoint route (internal)
+// -----------------------------------------------------------------------------
+app.post('/internal/notion/checkpoints', async (req, res) => {
+    const { title, summary } = req.body || {};
+
+    if (!title || !summary) {
+        return res.status(400).json({ ok: false, error: 'MISSING_FIELDS' });
+    }
+
+    try {
+        const page = await createCheckpointPage({
+            title,
+            summary,
+            date: new Date(),
+        });
+
+        return res.json({ ok: true, pageId: page.id });
+    } catch (err) {
+        console.error('Error creating Notion checkpoint page:', err);
+        return res.status(500).json({
+            ok: false,
+            error: 'NOTION_CHECKPOINT_ERROR',
+            details: err.message || String(err),
+        });
+    }
+});
+
 
 // -----------------------------------------------------------------------------
 // Start server
