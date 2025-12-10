@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@notionhq/client": "^5.4.0",
     "@supabase/supabase-js": "^2.86.0",
     "axios": "^1.13.2",
     "cors": "^2.8.5",
