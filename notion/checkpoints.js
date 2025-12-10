@@ -65,7 +65,7 @@ async function createCheckpointPage({
             },
             // Column: Status (type: Select)
             Status: {
-                select: status ? { name: status } : null,
+                status: status ? { name: status } : null,
             },
         },
 
@@ -172,7 +172,7 @@ router.put('/:id', async (req, res) => {
                     ],
                 },
                 Status: status
-                    ? { select: { name: status } }
+                    ? { status: { name: status } }
                     : undefined,
             },
         });
