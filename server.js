@@ -10,7 +10,7 @@ const newId = require('./utils/id');
 const { listProducts, createProductForGram } = require('./db/shopify');
 const PORT = process.env.PORT || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
-const checkpointsRouter = require('./routes/checkpoints');
+const checkpointsRouter = require('./notion/checkpoints');
 
 
 const app = express();
