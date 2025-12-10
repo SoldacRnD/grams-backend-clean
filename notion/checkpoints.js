@@ -1,7 +1,7 @@
 // routes/checkpoints.js
 const express = require('express');
 const router = express.Router();
-const { supabase } = require('../utils/supabaseClient');
+const { supabase } = require('../db/supabase');
 const { createCheckpointPage } = require('../notion/checkpoints');
 const { Client } = require('@notionhq/client');
 
