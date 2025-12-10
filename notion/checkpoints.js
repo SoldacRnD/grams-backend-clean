@@ -27,7 +27,7 @@ const notionText = (text) => [
 async function createCheckpointPage({
     title,
     summary,
-    status = 'Planned',
+    status = 'Not started',
     date = new Date(),
 }) {
     if (!NOTION_TOKEN || !NOTION_CHECKPOINT_DB_ID) {
@@ -36,90 +36,64 @@ async function createCheckpointPage({
 
     const isoDate = date.toISOString().split('T')[0];
 
-    // Get DB schema so we can map to whatever you actually have
-    const db = await notion.databases.retrieve({
-        database_id: NOTION_CHECKPOINT_DB_ID,
-    });
-
-    const props = db.properties || {};
-
-    const titleProp = Object.keys(props).find((k) => props[k].type === 'title');
-    const summaryProp = Object.keys(props).find(
-        (k) => props[k].type === 'rich_text' && k.toLowerCase().includes('summary')
-    );
-    const dateProp = Object.keys(props).find((k) => props[k].type === 'date');
-    const statusProp = Object.keys(props).find(
-        (k) => props[k].type === 'select' && k.toLowerCase().includes('status')
-    );
-
-    if (!titleProp) {
-        throw new Error('No title property found in the Notion checkpoints database');
-    }
-
-    const properties = {};
-
-    // Title column (whatever it’s called in your DB)
-    properties[titleProp] = {
-        title: notionText(title),
-    };
-
-    // Optional Summary column IF you added one of type "Text" (rich_text in API)
-    if (summaryProp && summary) {
-        properties[summaryProp] = {
-            rich_text: notionText(summary),
-        };
-    }
-
-    // Optional Date column
-    if (dateProp) {
-        properties[dateProp] = {
-            date: {
-                start: isoDate,
+    const page = await notion.pages.create({
+        parent: { database_id: NOTION_CHECKPOINT_DB_ID },
+        properties: {
+            // Column: Title (type: Title)
+            Title: {
+                title: [
+                    {
+                        type: 'text',
+                        text: { content: title || '' },
+                    },
+                ],
             },
-        };
-    }
+            // Column: Date (type: Date)
+            Date: {
+                date: {
+                    start: isoDate,
+                },
+            },
+            // Column: Summary (type: Text → rich_text in API)
+            Summary: {
+                rich_text: [
+                    {
+                        type: 'text',
+                        text: { content: summary || '' },
+                    },
+                ],
+            },
+            // Column: Status (type: Select)
+            Status: {
+                select: status ? { name: status } : null,
+            },
+        },
 
-    // Optional Status column (select)
-    if (statusProp && status) {
-        properties[statusProp] = {
-            select: { name: status },
-        };
-    }
-
-    // Detailed page content (children blocks)
-    const children = [];
-
-    if (summary) {
-        children.push(
+        // Detailed page content (body)
+        children: [
             {
                 object: 'block',
                 heading_2: {
-                    rich_text: [
-                        { type: 'text', text: { content: 'Summary' } },
-                    ],
+                    rich_text: [{ type: 'text', text: { content: 'Summary' } }],
                 },
             },
             {
                 object: 'block',
                 paragraph: {
                     rich_text: [
-                        { type: 'text', text: { content: summary } },
+                        {
+                            type: 'text',
+                            text: { content: summary || '' },
+                        },
                     ],
                 },
-            }
-        );
-    }
-
-    // You can add more structure here later (bullet lists, code blocks, etc.)
-
-    const page = await notion.pages.create({
-        parent: { database_id: NOTION_CHECKPOINT_DB_ID },
-        properties,
-        children,
+            },
+        ],
     });
 
     return page;
 }
+
 
 
 // ────────────────────────────────────────────────
@@ -129,7 +103,7 @@ async function createCheckpointPage({
 // Create a new checkpoint (Supabase → Notion)
 
 router.post('/', async (req, res) => {
-    const { title, summary, status = 'Planned' } = req.body;
+    const { title, summary, status = 'Not started' } = req.body;
 
     try {
         console.log('📌 Creating checkpoint in Notion:', { title, summary, status });
@@ -165,6 +139,7 @@ router.post('/', async (req, res) => {
 });
 
 
+
 // Update existing checkpoint (bi-directional)
 router.put('/:id', async (req, res) => {
     const { id } = req.params;
@@ -182,27 +157,25 @@ router.put('/:id', async (req, res) => {
         }
 
         const pageId = checkpoint.notion_page_id;
-        const db = await notion.databases.retrieve({
-            database_id: NOTION_CHECKPOINT_DB_ID,
+
+        await notion.pages.update({
+            page_id: pageId,
+            properties: {
+                Title: {
+                    title: [
+                        { type: 'text', text: { content: title || '' } },
+                    ],
+                },
+                Summary: {
+                    rich_text: [
+                        { type: 'text', text: { content: summary || '' } },
+                    ],
+                },
+                Status: status
+                    ? { select: { name: status } }
+                    : undefined,
+            },
         });
-        const props = db.properties || {};
-
-        const titleProp = Object.keys(props).find((k) => props[k].type === 'title');
-        const summaryProp = Object.keys(props).find(
-            (k) => props[k].type === 'rich_text' && k.toLowerCase().includes('summary')
-        );
-        const statusProp = Object.keys(props).find(
-            (k) => props[k].type === 'select' && k.toLowerCase().includes('status')
-        );
-
-        const properties = {};
-        if (titleProp) properties[titleProp] = { title: notionText(title) };
-        if (summaryProp) properties[summaryProp] = { rich_text: notionText(summary) };
-        if (statusProp && status) {
-            properties[statusProp] = { select: { name: status } };
-        }
-
-        await notion.pages.update({ page_id: pageId, properties });
 
         const { data: updated, error: updateError } = await supabase
             .from('checkpoints')
@@ -224,6 +197,7 @@ router.put('/:id', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
 
 // List all checkpoints
 router.get('/', async (_req, res) => {
