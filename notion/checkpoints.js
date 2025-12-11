@@ -3,7 +3,26 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../db/supabase');
 const { Client } = require('@notionhq/client');
-const NOTION_MAIN_PAGE_ID = process.env.NOTION_MAIN_PAGE_ID;
+
+const RAW_MAIN_PAGE_ID =
+    process.env.NOTION_MAIN_PAGE_ID || '2c3a8022ebcf80e59517d0bc774efe68';
+
+// Helper: normalize Notion IDs to UUID-with-dashes
+function formatNotionId(id) {
+    if (!id) return id;
+    const clean = id.replace(/-/g, '');
+    if (clean.length !== 32) return id; // already in some acceptable format
+    return (
+        clean.slice(0, 8) + '-' +
+        clean.slice(8, 12) + '-' +
+        clean.slice(12, 16) + '-' +
+        clean.slice(16, 20) + '-' +
+        clean.slice(20)
+    );
+}
+
+const NOTION_MAIN_PAGE_ID = formatNotionId(RAW_MAIN_PAGE_ID);
+
 // ────────────────────────────────────────────────
 // 🔧 Environment + Notion setup
 // ────────────────────────────────────────────────
@@ -226,60 +245,69 @@ async function appendCheckpointToMainPage({
     }
 
     const isoDate = date.toISOString().split('T')[0];
+    const blockId = NOTION_MAIN_PAGE_ID;
 
-    // Notion page URL for this checkpoint (simple URL, not a real link_to_page block)
-    const pageUrl = `https://www.notion.so/${notionPageId.replace(/-/g, '')}`;
+    // URL for the individual checkpoint page
+    const checkpointUrl = `https://www.notion.so/${notionPageId.replace(/-/g, '')}`;
 
-    await notion.blocks.children.append({
-        block_id: NOTION_MAIN_PAGE_ID,
-        children: [
-            {
-                object: 'block',
-                heading_3: {
-                    rich_text: [
-                        {
-                            type: 'text',
-                            text: { content: title || 'Untitled checkpoint' },
-                        },
-                    ],
-                },
-            },
-            {
-                object: 'block',
-                paragraph: {
-                    rich_text: [
-                        {
-                            type: 'text',
-                            text: {
-                                content: `Status: ${status} · Date: ${isoDate}`,
-                            },
-                        },
-                    ],
-                },
-            },
-            {
-                object: 'block',
-                paragraph: {
-                    rich_text: [
-                        {
-                            type: 'text',
-                            text: {
-                                content: summary || '',
-                                link: { url: pageUrl },
-                            },
-                        },
-                    ],
-                },
-            },
-            {
-                object: 'block',
-                divider: {},
-            },
-        ],
+    console.log('🧱 Appending checkpoint to main page:', {
+        blockId,
+        title,
+        status,
+        isoDate,
     });
+
+    try {
+        await notion.blocks.children.append({
+            block_id: blockId,
+            children: [
+                {
+                    object: 'block',
+                    heading_3: {
+                        rich_text: [
+                            {
+                                type: 'text',
+                                text: { content: title || 'Untitled checkpoint' },
+                            },
+                        ],
+                    },
+                },
+                {
+                    object: 'block',
+                    paragraph: {
+                        rich_text: [
+                            {
+                                type: 'text',
+                                text: {
+                                    content: `Status: ${status} · Date: ${isoDate}`,
+                                },
+                            },
+                        ],
+                    },
+                },
+                {
+                    object: 'block',
+                    paragraph: {
+                        rich_text: [
+                            {
+                                type: 'text',
+                                text: {
+                                    content: summary || '',
+                                    link: { url: checkpointUrl },
+                                },
+                            },
+                        ],
+                    },
+                },
+                { object: 'block', divider: {} },
+            ],
+        });
+
+        console.log('✅ Main project page updated with new checkpoint block.');
+    } catch (err) {
+        console.error('❌ Failed to append blocks to main page:', err.body || err);
+    }
 }
-
-
 
 // ────────────────────────────────────────────────
 // 🚀 Routes
