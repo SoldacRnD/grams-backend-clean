@@ -11,7 +11,9 @@ const NOTION_TOKEN = process.env.NOTION_TOKEN;
 const NOTION_CHECKPOINT_DB_ID = process.env.NOTION_CHECKPOINT_DB_ID;
 
 if (!NOTION_TOKEN || !NOTION_CHECKPOINT_DB_ID) {
-    console.warn('⚠️ Notion integration not fully configured (missing NOTION_TOKEN or NOTION_CHECKPOINT_DB_ID)');
+    console.warn(
+        '⚠️ Notion integration not fully configured (missing NOTION_TOKEN or NOTION_CHECKPOINT_DB_ID)'
+    );
 }
 
 const notion = new Client({ auth: NOTION_TOKEN });
@@ -32,11 +34,7 @@ async function createCheckpointPage({
 
     const isoDate = date.toISOString().split('T')[0];
 
-    // This assumes your Notion DB has columns named:
-    // - Title (title)
-    // - Date (date)
-    // - Summary (rich_text)
-    // - Status (status)
+    // Assumes DB has: Title (title), Date (date), Summary (rich_text), Status (status)
     const page = await notion.pages.create({
         parent: { database_id: NOTION_CHECKPOINT_DB_ID },
         properties: {
@@ -65,13 +63,15 @@ async function createCheckpointPage({
                 status: status ? { name: status } : null,
             },
         },
-        // Simple body: we can make it fancier later
         children: [
             {
                 object: 'block',
                 heading_1: {
                     rich_text: [
-                        { type: 'text', text: { content: title || '' } },
+                        {
+                            type: 'text',
+                            text: { content: title || '' },
+                        },
                     ],
                 },
             },
@@ -150,74 +150,76 @@ router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { title, summary, status } = req.body || {};
 
-    try:
-    // Get Notion page id from Supabase
-    const { data: checkpoint, error: fetchError } = await supabase
-        .from('checkpoints')
-        .select('notion_page_id')
-        .eq('id', id)
-        .single();
+    try {
+        // 1) Get Notion page id from Supabase
+        const { data: checkpoint, error: fetchError } = await supabase
+            .from('checkpoints')
+            .select('notion_page_id')
+            .eq('id', id)
+            .single();
 
-    if (fetchError || !checkpoint) {
-        return res.status(404).json({ success: false, error: 'CHECKPOINT_NOT_FOUND' });
+        if (fetchError || !checkpoint) {
+            return res
+                .status(404)
+                .json({ success: false, error: 'CHECKPOINT_NOT_FOUND' });
+        }
+
+        const pageId = checkpoint.notion_page_id;
+
+        // 2) Update in Notion
+        await notion.pages.update({
+            page_id: pageId,
+            properties: {
+                Title: title
+                    ? {
+                        title: [
+                            {
+                                type: 'text',
+                                text: { content: title },
+                            },
+                        ],
+                    }
+                    : undefined,
+                Summary: summary
+                    ? {
+                        rich_text: [
+                            {
+                                type: 'text',
+                                text: { content: summary },
+                            },
+                        ],
+                    }
+                    : undefined,
+                Status: status
+                    ? { status: { name: status } }
+                    : undefined,
+            },
+        });
+
+        // 3) Update in Supabase
+        const { data: updated, error: updateError } = await supabase
+            .from('checkpoints')
+            .update({
+                title,
+                summary,
+                status,
+                updated_at: new Date(),
+            })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (updateError) throw updateError;
+
+        return res.json({ success: true, checkpoint: updated });
+    } catch (err) {
+        console.error('❌ Error updating checkpoint:', err);
+        return res.status(500).json({
+            success: false,
+            error: 'CHECKPOINT_UPDATE_ERROR',
+            details: err.message || String(err),
+        });
     }
-
-    const pageId = checkpoint.notion_page_id;
-
-    // Update in Notion
-    await notion.pages.update({
-        page_id: pageId,
-        properties: {
-            Title: title
-                ? {
-                    title: [
-                        {
-                            type: 'text',
-                            text: { content: title },
-                        },
-                    ],
-                }
-                : undefined,
-            Summary: summary
-                ? {
-                    rich_text: [
-                        {
-                            type: 'text',
-                            text: { content: summary },
-                        },
-                    ],
-                }
-                : undefined,
-            Status: status
-                ? { status: { name: status } }
-                : undefined,
-        },
-    });
-
-    // Update in Supabase
-    const { data: updated, error: updateError } = await supabase
-        .from('checkpoints')
-        .update({
-            title,
-            summary,
-            status,
-            updated_at: new Date(),
-        })
-        .eq('id', id)
-        .select()
-        .single();
-
-    if (updateError) throw updateError;
-
-    return res.json({ success: true, checkpoint: updated });
-} catch (err) {
-    console.error('❌ Error updating checkpoint:', err);
-    return res.status(500).json({
-        success: false,
-        error: 'CHECKPOINT_UPDATE_ERROR',
-        details: err.message || String(err),
-    });
-}
 });
 
 // List all checkpoints
