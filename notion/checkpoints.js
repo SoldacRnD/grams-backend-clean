@@ -89,6 +89,63 @@ async function createCheckpointPage({
         ],
     });
 
+    const NOTION_MAIN_PAGE_ID = process.env.NOTION_MAIN_PAGE_ID;
+
+    async function appendCheckpointToMainPage({
+        title,
+        summary,
+        status,
+        date = new Date(),
+        notionPageId,
+    }) {
+        if (!NOTION_TOKEN) throw new Error('NOTION_TOKEN missing');
+        if (!NOTION_MAIN_PAGE_ID) throw new Error('NOTION_MAIN_PAGE_ID missing');
+        if (!notionPageId) throw new Error('notionPageId missing');
+
+        const isoDate = date.toISOString().split('T')[0];
+
+        // Notion page URL for the checkpoint page
+        const pageUrl = `https://www.notion.so/${String(notionPageId).replace(/-/g, '')}`;
+
+        await notion.blocks.children.append({
+            block_id: NOTION_MAIN_PAGE_ID,
+            children: [
+                {
+                    object: 'block',
+                    heading_3: {
+                        rich_text: [
+                            { type: 'text', text: { content: title || 'Untitled checkpoint' } },
+                        ],
+                    },
+                },
+                {
+                    object: 'block',
+                    paragraph: {
+                        rich_text: [
+                            {
+                                type: 'text',
+                                text: { content: `Status: ${status || 'Not started'} · Date: ${isoDate}` },
+                            },
+                        ],
+                    },
+                },
+                {
+                    object: 'block',
+                    paragraph: {
+                        rich_text: [
+                            {
+                                type: 'text',
+                                text: { content: summary || '(no summary)', link: { url: pageUrl } },
+                            },
+                        ],
+                    },
+                },
+                { object: 'block', divider: {} },
+            ],
+        });
+    }
+
+
     return page;
 }
 
@@ -144,6 +201,41 @@ router.post('/', async (req, res) => {
         });
     }
 });
+
+// Append an existing checkpoint to the main A-Gram-of-Art page
+router.post('/:id/append-to-main', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const { data: checkpoint, error } = await supabase
+            .from('checkpoints')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (error || !checkpoint) {
+            return res.status(404).json({ success: false, error: 'CHECKPOINT_NOT_FOUND' });
+        }
+
+        await appendCheckpointToMainPage({
+            title: checkpoint.title,
+            summary: checkpoint.summary,
+            status: checkpoint.status,
+            date: checkpoint.created_at ? new Date(checkpoint.created_at) : new Date(),
+            notionPageId: checkpoint.notion_page_id,
+        });
+
+        return res.json({ success: true });
+    } catch (err) {
+        console.error('❌ append-to-main error:', err);
+        return res.status(500).json({
+            success: false,
+            error: 'APPEND_TO_MAIN_ERROR',
+            details: err.message || String(err),
+        });
+    }
+});
+
 
 // Update existing checkpoint
 router.put('/:id', async (req, res) => {
