@@ -12,16 +12,17 @@ const PORT = process.env.PORT || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 const app = express();
 
-// Import from /notion because you have no /routes folder
-const { router: checkpointsRouter, createCheckpointPage } = require('./notion/checkpoints');
-app.use('/api/checkpoints', checkpointsRouter);
 // Middleware
 app.use(cors());
 app.use(express.json({ type: '*/*' }));
 app.use('/legal', express.static(path.join(__dirname, 'public')));
 
-const upload = multer({ storage: multer.memoryStorage() });
+// Import from /notion because you have no /routes folder
+const { router: checkpointsRouter, createCheckpointPage } = require('./notion/checkpoints');
+app.use('/api/checkpoints', checkpointsRouter);
 
+
+const upload = multer({ storage: multer.memoryStorage() });
 const db = new SupabaseDB();
 
 // Serve producer web UI
