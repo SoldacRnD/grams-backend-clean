@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../db/supabase');
 const { Client } = require('@notionhq/client');
-
+const NOTION_MAIN_PAGE_ID = process.env.NOTION_MAIN_PAGE_ID;
 // ────────────────────────────────────────────────
 // 🔧 Environment + Notion setup
 // ────────────────────────────────────────────────
@@ -213,6 +213,71 @@ async function createCheckpointPage({
     return page;
 }
 
+async function appendCheckpointToMainPage({
+    title,
+    summary,
+    status = 'Not started',
+    date = new Date(),
+    notionPageId,
+}) {
+    if (!NOTION_MAIN_PAGE_ID) {
+        console.warn('⚠️ NOTION_MAIN_PAGE_ID not set, skipping main page update.');
+        return;
+    }
+
+    const isoDate = date.toISOString().split('T')[0];
+
+    // Notion page URL for this checkpoint (simple URL, not a real link_to_page block)
+    const pageUrl = `https://www.notion.so/${notionPageId.replace(/-/g, '')}`;
+
+    await notion.blocks.children.append({
+        block_id: NOTION_MAIN_PAGE_ID,
+        children: [
+            {
+                object: 'block',
+                heading_3: {
+                    rich_text: [
+                        {
+                            type: 'text',
+                            text: { content: title || 'Untitled checkpoint' },
+                        },
+                    ],
+                },
+            },
+            {
+                object: 'block',
+                paragraph: {
+                    rich_text: [
+                        {
+                            type: 'text',
+                            text: {
+                                content: `Status: ${status} · Date: ${isoDate}`,
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                object: 'block',
+                paragraph: {
+                    rich_text: [
+                        {
+                            type: 'text',
+                            text: {
+                                content: summary || '',
+                                link: { url: pageUrl },
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                object: 'block',
+                divider: {},
+            },
+        ],
+    });
+}
 
 
 
@@ -246,6 +311,21 @@ router.post('/', async (req, res) => {
             .single();
 
         if (error) throw error;
+
+        // ⬇️ NEW: append a summary block to the main "A Gram of Art" page
+        try {
+            await appendCheckpointToMainPage({
+                title,
+                summary,
+                status,
+                date: new Date(),
+                notionPageId: notionPage.id,
+            });
+            console.log('✅ Main project page updated with new checkpoint.');
+        } catch (appendErr) {
+            console.warn('⚠️ Failed to append checkpoint to main page:', appendErr);
+            // Don’t fail the whole request because of this.
+        }
 
         res.json({
             success: true,
