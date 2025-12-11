@@ -4,25 +4,6 @@ const router = express.Router();
 const { supabase } = require('../db/supabase');
 const { Client } = require('@notionhq/client');
 
-const RAW_MAIN_PAGE_ID =
-    process.env.NOTION_MAIN_PAGE_ID || '2c3a8022ebcf80e59517d0bc774efe68';
-
-// Helper: normalize Notion IDs to UUID-with-dashes
-function formatNotionId(id) {
-    if (!id) return id;
-    const clean = id.replace(/-/g, '');
-    if (clean.length !== 32) return id; // already in some acceptable format
-    return (
-        clean.slice(0, 8) + '-' +
-        clean.slice(8, 12) + '-' +
-        clean.slice(12, 16) + '-' +
-        clean.slice(16, 20) + '-' +
-        clean.slice(20)
-    );
-}
-
-const NOTION_MAIN_PAGE_ID = formatNotionId(RAW_MAIN_PAGE_ID);
-
 // ────────────────────────────────────────────────
 // 🔧 Environment + Notion setup
 // ────────────────────────────────────────────────
@@ -30,7 +11,7 @@ const NOTION_TOKEN = process.env.NOTION_TOKEN;
 const NOTION_CHECKPOINT_DB_ID = process.env.NOTION_CHECKPOINT_DB_ID;
 
 if (!NOTION_TOKEN || !NOTION_CHECKPOINT_DB_ID) {
-    console.warn('⚠️ Notion integration not fully configured (missing env vars)');
+    console.warn('⚠️ Notion integration not fully configured (missing NOTION_TOKEN or NOTION_CHECKPOINT_DB_ID)');
 }
 
 const notion = new Client({ auth: NOTION_TOKEN });
@@ -38,11 +19,7 @@ const notion = new Client({ auth: NOTION_TOKEN });
 // ────────────────────────────────────────────────
 // 🧩 Helpers
 // ────────────────────────────────────────────────
-const notionText = (text) => [
-    { type: 'text', text: { content: text || '' } },
-];
 
-// Create a Notion page dynamically (schema-aware)
 async function createCheckpointPage({
     title,
     summary,
@@ -55,14 +32,20 @@ async function createCheckpointPage({
 
     const isoDate = date.toISOString().split('T')[0];
 
+    // This assumes your Notion DB has columns named:
+    // - Title (title)
+    // - Date (date)
+    // - Summary (rich_text)
+    // - Status (status)
     const page = await notion.pages.create({
         parent: { database_id: NOTION_CHECKPOINT_DB_ID },
-
-        // 🧩 Table properties
         properties: {
             Title: {
                 title: [
-                    { type: 'text', text: { content: title || '' } },
+                    {
+                        type: 'text',
+                        text: { content: title || '' },
+                    },
                 ],
             },
             Date: {
@@ -72,18 +55,18 @@ async function createCheckpointPage({
             },
             Summary: {
                 rich_text: [
-                    { type: 'text', text: { content: summary || '' } },
+                    {
+                        type: 'text',
+                        text: { content: summary || '' },
+                    },
                 ],
             },
             Status: {
-                // 👇 important: Status-type property uses "status", not "select"
                 status: status ? { name: status } : null,
             },
         },
-
-        // 🧱 Page body layout – this is where we make it “nice”
+        // Simple body: we can make it fancier later
         children: [
-            // Big heading
             {
                 object: 'block',
                 heading_1: {
@@ -92,136 +75,13 @@ async function createCheckpointPage({
                     ],
                 },
             },
-
-            // Small “meta” paragraph
-            {
-                object: 'block',
-                paragraph: {
-                    rich_text: [
-                        { type: 'text', text: { content: 'Checkpoint in A Gram of Art development timeline.' } },
-                    ],
-                },
-            },
-
-            // Divider
-            { object: 'block', divider: {} },
-
-            // Overview section
-            {
-                object: 'block',
-                heading_2: {
-                    rich_text: [
-                        { type: 'text', text: { content: 'Overview' } },
-                    ],
-                },
-            },
             {
                 object: 'block',
                 paragraph: {
                     rich_text: [
                         {
                             type: 'text',
-                            text: {
-                                content: summary || 'No overview provided.',
-                            },
-                        },
-                    ],
-                },
-            },
-
-            // Today’s changes section
-            {
-                object: 'block',
-                heading_2: {
-                    rich_text: [
-                        { type: 'text', text: { content: 'What we implemented today' } },
-                    ],
-                },
-            },
-            {
-                object: 'block',
-                bulleted_list_item: {
-                    rich_text: [
-                        {
-                            type: 'text',
-                            text: {
-                                content: 'Notion ↔ backend checkpoint flow stabilized (fields + Status).',
-                            },
-                        },
-                    ],
-                },
-            },
-            {
-                object: 'block',
-                bulleted_list_item: {
-                    rich_text: [
-                        {
-                            type: 'text',
-                            text: {
-                                content: 'Detailed checkpoint pages now created automatically from ChatGPT/agent.',
-                            },
-                        },
-                    ],
-                },
-            },
-            {
-                object: 'block',
-                bulleted_list_item: {
-                    rich_text: [
-                        {
-                            type: 'text',
-                            text: {
-                                content: 'Shopify multi-media product flow remains working from Producer UI.',
-                            },
-                        },
-                    ],
-                },
-            },
-
-            // Next steps section
-            {
-                object: 'block',
-                heading_2: {
-                    rich_text: [
-                        { type: 'text', text: { content: 'Next steps' } },
-                    ],
-                },
-            },
-            {
-                object: 'block',
-                bulleted_list_item: {
-                    rich_text: [
-                        {
-                            type: 'text',
-                            text: {
-                                content: 'Add full Shopify product editing (status, tags, SEO, etc.) in Producer UI.',
-                            },
-                        },
-                    ],
-                },
-            },
-            {
-                object: 'block',
-                bulleted_list_item: {
-                    rich_text: [
-                        {
-                            type: 'text',
-                            text: {
-                                content: 'Start Vendor UI for perk redemption.',
-                            },
-                        },
-                    ],
-                },
-            },
-            {
-                object: 'block',
-                bulleted_list_item: {
-                    rich_text: [
-                        {
-                            type: 'text',
-                            text: {
-                                content: 'Implement NFC claim flow animations + customer-facing polish.',
-                            },
+                            text: { content: summary || '' },
                         },
                     ],
                 },
@@ -232,101 +92,29 @@ async function createCheckpointPage({
     return page;
 }
 
-async function appendCheckpointToMainPage({
-    title,
-    summary,
-    status = 'Not started',
-    date = new Date(),
-    notionPageId,
-}) {
-    if (!NOTION_MAIN_PAGE_ID) {
-        throw new Error('NOTION_MAIN_PAGE_ID not set, cannot update main page.');
-    }
-
-    const isoDate = date.toISOString().split('T')[0];
-    const blockId = NOTION_MAIN_PAGE_ID;
-
-    const checkpointUrl = `https://www.notion.so/${notionPageId.replace(/-/g, '')}`;
-
-    console.log('🧱 Appending checkpoint to main page:', {
-        blockId,
-        title,
-        status,
-        isoDate,
-    });
-
-    try {
-        await notion.blocks.children.append({
-            block_id: blockId,
-            children: [
-                {
-                    object: 'block',
-                    heading_3: {
-                        rich_text: [
-                            {
-                                type: 'text',
-                                text: { content: title || 'Untitled checkpoint' },
-                            },
-                        ],
-                    },
-                },
-                {
-                    object: 'block',
-                    paragraph: {
-                        rich_text: [
-                            {
-                                type: 'text',
-                                text: {
-                                    content: `Status: ${status} · Date: ${isoDate}`,
-                                },
-                            },
-                        ],
-                    },
-                },
-                {
-                    object: 'block',
-                    paragraph: {
-                        rich_text: [
-                            {
-                                type: 'text',
-                                text: {
-                                    content: summary || '',
-                                    link: { url: checkpointUrl },
-                                },
-                            },
-                        ],
-                    },
-                },
-                { object: 'block', divider: {} },
-            ],
-        });
-
-        console.log('✅ Main project page updated with new checkpoint block.');
-    } catch (err) {
-        // Surface the real Notion error so the API caller sees it
-        const msg = err.body ? JSON.stringify(err.body) : err.message;
-        console.error('❌ Failed to append blocks to main page:', msg);
-        throw new Error(`MAIN_PAGE_APPEND_ERROR: ${msg}`);
-    }
-}
-
-
 // ────────────────────────────────────────────────
 // 🚀 Routes
 // ────────────────────────────────────────────────
 
 // Create a new checkpoint (Supabase → Notion)
-
 router.post('/', async (req, res) => {
-    const { title, summary, status = 'Not started' } = req.body;
+    const { title, summary, status = 'Not started' } = req.body || {};
+
+    if (!title || !summary) {
+        return res.status(400).json({
+            success: false,
+            error: 'MISSING_FIELDS',
+            details: 'title and summary are required',
+        });
+    }
 
     try {
-        console.log('📌 Creating checkpoint in Notion:', { title, summary, status });
+        console.log('📌 Creating checkpoint:', { title, status });
 
+        // 1) Create page in Notion
         const notionPage = await createCheckpointPage({ title, summary, status });
 
-        console.log('✅ Notion page created:', notionPage.id);
-
+        // 2) Insert row into Supabase
         const { data, error } = await supabase
             .from('checkpoints')
             .insert([
@@ -342,88 +130,95 @@ router.post('/', async (req, res) => {
 
         if (error) throw error;
 
-        // ⬇️ NEW: append a summary block to the main "A Gram of Art" page
-        // Append to main A Gram of Art page as part of the same operation
-        await appendCheckpointToMainPage({
-            title,
-            summary,
-            status,
-            date: new Date(),
-            notionPageId: notionPage.id,
-        });
-
-        res.json({
+        return res.json({
             success: true,
             checkpoint: data,
             notion_page_id: notionPage.id,
-            main_page_updated: true,
         });
     } catch (err) {
         console.error('❌ Error creating checkpoint:', err);
-        res.status(500).json({ error: err.message });
+        return res.status(500).json({
+            success: false,
+            error: 'CHECKPOINT_CREATE_ERROR',
+            details: err.message || String(err),
+        });
     }
 });
 
-
-
-// Update existing checkpoint (bi-directional)
+// Update existing checkpoint
 router.put('/:id', async (req, res) => {
     const { id } = req.params;
-    const { title, summary, status } = req.body;
+    const { title, summary, status } = req.body || {};
 
-    try {
-        const { data: checkpoint, error: fetchError } = await supabase
-            .from('checkpoints')
-            .select('notion_page_id')
-            .eq('id', id)
-            .single();
+    try:
+    // Get Notion page id from Supabase
+    const { data: checkpoint, error: fetchError } = await supabase
+        .from('checkpoints')
+        .select('notion_page_id')
+        .eq('id', id)
+        .single();
 
-        if (fetchError || !checkpoint) {
-            return res.status(404).json({ error: 'Checkpoint not found' });
-        }
-
-        const pageId = checkpoint.notion_page_id;
-
-        await notion.pages.update({
-            page_id: pageId,
-            properties: {
-                Title: {
-                    title: [
-                        { type: 'text', text: { content: title || '' } },
-                    ],
-                },
-                Summary: {
-                    rich_text: [
-                        { type: 'text', text: { content: summary || '' } },
-                    ],
-                },
-                Status: status
-                    ? { status: { name: status } }
-                    : undefined,
-            },
-        });
-
-        const { data: updated, error: updateError } = await supabase
-            .from('checkpoints')
-            .update({
-                title,
-                summary,
-                status,
-                updated_at: new Date(),
-            })
-            .eq('id', id)
-            .select()
-            .single();
-
-        if (updateError) throw updateError;
-
-        res.json({ success: true, checkpoint: updated });
-    } catch (err) {
-        console.error('❌ Error updating checkpoint:', err);
-        res.status(500).json({ error: err.message });
+    if (fetchError || !checkpoint) {
+        return res.status(404).json({ success: false, error: 'CHECKPOINT_NOT_FOUND' });
     }
-});
 
+    const pageId = checkpoint.notion_page_id;
+
+    // Update in Notion
+    await notion.pages.update({
+        page_id: pageId,
+        properties: {
+            Title: title
+                ? {
+                    title: [
+                        {
+                            type: 'text',
+                            text: { content: title },
+                        },
+                    ],
+                }
+                : undefined,
+            Summary: summary
+                ? {
+                    rich_text: [
+                        {
+                            type: 'text',
+                            text: { content: summary },
+                        },
+                    ],
+                }
+                : undefined,
+            Status: status
+                ? { status: { name: status } }
+                : undefined,
+        },
+    });
+
+    // Update in Supabase
+    const { data: updated, error: updateError } = await supabase
+        .from('checkpoints')
+        .update({
+            title,
+            summary,
+            status,
+            updated_at: new Date(),
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (updateError) throw updateError;
+
+    return res.json({ success: true, checkpoint: updated });
+} catch (err) {
+    console.error('❌ Error updating checkpoint:', err);
+    return res.status(500).json({
+        success: false,
+        error: 'CHECKPOINT_UPDATE_ERROR',
+        details: err.message || String(err),
+    });
+}
+});
 
 // List all checkpoints
 router.get('/', async (_req, res) => {
@@ -434,45 +229,15 @@ router.get('/', async (_req, res) => {
             .order('created_at', { ascending: false });
 
         if (error) throw error;
-        res.json({ success: true, checkpoints: data });
+
+        return res.json({ success: true, checkpoints: data });
     } catch (err) {
         console.error('❌ Error listing checkpoints:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Sync Notion → Supabase
-router.get('/sync', async (_req, res) => {
-    try {
-        const notionPages = await notion.databases.query({
-            database_id: NOTION_CHECKPOINT_DB_ID,
+        return res.status(500).json({
+            success: false,
+            error: 'CHECKPOINT_LIST_ERROR',
+            details: err.message || String(err),
         });
-
-        for (const page of notionPages.results) {
-            const props = page.properties;
-
-            // These assume specific property names; adjust if different in your DB:
-            const title =
-                props.Title?.title?.[0]?.plain_text ||
-                props.Name?.title?.[0]?.plain_text ||
-                '';
-            const summary =
-                props.Summary?.rich_text?.[0]?.plain_text || '';
-            const status =
-                props.Status?.select?.name || 'Planned';
-
-            await supabase.from('checkpoints').upsert({
-                title,
-                summary,
-                status,
-                notion_page_id: page.id,
-            });
-        }
-
-        res.json({ success: true, message: '✅ Notion → Supabase sync complete' });
-    } catch (err) {
-        console.error('❌ Sync error:', err);
-        res.status(500).json({ error: err.message });
     }
 });
 
@@ -480,6 +245,6 @@ router.get('/sync', async (_req, res) => {
 // ✅ Export router + helper
 // ────────────────────────────────────────────────
 module.exports = {
-    router,               // Express router
-    createCheckpointPage, // Notion helper
+    router,
+    createCheckpointPage,
 };
