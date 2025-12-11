@@ -240,14 +240,12 @@ async function appendCheckpointToMainPage({
     notionPageId,
 }) {
     if (!NOTION_MAIN_PAGE_ID) {
-        console.warn('⚠️ NOTION_MAIN_PAGE_ID not set, skipping main page update.');
-        return;
+        throw new Error('NOTION_MAIN_PAGE_ID not set, cannot update main page.');
     }
 
     const isoDate = date.toISOString().split('T')[0];
     const blockId = NOTION_MAIN_PAGE_ID;
 
-    // URL for the individual checkpoint page
     const checkpointUrl = `https://www.notion.so/${notionPageId.replace(/-/g, '')}`;
 
     console.log('🧱 Appending checkpoint to main page:', {
@@ -305,9 +303,13 @@ async function appendCheckpointToMainPage({
 
         console.log('✅ Main project page updated with new checkpoint block.');
     } catch (err) {
-        console.error('❌ Failed to append blocks to main page:', err.body || err);
+        // Surface the real Notion error so the API caller sees it
+        const msg = err.body ? JSON.stringify(err.body) : err.message;
+        console.error('❌ Failed to append blocks to main page:', msg);
+        throw new Error(`MAIN_PAGE_APPEND_ERROR: ${msg}`);
     }
 }
+
 
 // ────────────────────────────────────────────────
 // 🚀 Routes
@@ -341,24 +343,20 @@ router.post('/', async (req, res) => {
         if (error) throw error;
 
         // ⬇️ NEW: append a summary block to the main "A Gram of Art" page
-        try {
-            await appendCheckpointToMainPage({
-                title,
-                summary,
-                status,
-                date: new Date(),
-                notionPageId: notionPage.id,
-            });
-            console.log('✅ Main project page updated with new checkpoint.');
-        } catch (appendErr) {
-            console.warn('⚠️ Failed to append checkpoint to main page:', appendErr);
-            // Don’t fail the whole request because of this.
-        }
+        // Append to main A Gram of Art page as part of the same operation
+        await appendCheckpointToMainPage({
+            title,
+            summary,
+            status,
+            date: new Date(),
+            notionPageId: notionPage.id,
+        });
 
         res.json({
             success: true,
             checkpoint: data,
             notion_page_id: notionPage.id,
+            main_page_updated: true,
         });
     } catch (err) {
         console.error('❌ Error creating checkpoint:', err);
