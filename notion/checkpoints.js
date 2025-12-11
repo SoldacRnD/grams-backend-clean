@@ -94,7 +94,7 @@ async function createCheckpointPage({
     async function appendCheckpointToMainPage({
         title,
         summary,
-        status,
+        status = 'Not started',
         date = new Date(),
         notionPageId,
     }) {
@@ -103,8 +103,6 @@ async function createCheckpointPage({
         if (!notionPageId) throw new Error('notionPageId missing');
 
         const isoDate = date.toISOString().split('T')[0];
-
-        // Notion page URL for the checkpoint page
         const pageUrl = `https://www.notion.so/${String(notionPageId).replace(/-/g, '')}`;
 
         await notion.blocks.children.append({
@@ -122,10 +120,7 @@ async function createCheckpointPage({
                     object: 'block',
                     paragraph: {
                         rich_text: [
-                            {
-                                type: 'text',
-                                text: { content: `Status: ${status || 'Not started'} · Date: ${isoDate}` },
-                            },
+                            { type: 'text', text: { content: `Status: ${status} · Date: ${isoDate}` } },
                         ],
                     },
                 },
@@ -144,6 +139,7 @@ async function createCheckpointPage({
             ],
         });
     }
+
 
 
     return page;
@@ -186,6 +182,24 @@ router.post('/', async (req, res) => {
             .single();
 
         if (error) throw error;
+
+        // ⬇️ NEW: automatically append to main project page
+        try {
+            await appendCheckpointToMainPage({
+                title,
+                summary,
+                status,
+                date: new Date(),
+                notionPageId: notionPage.id,
+            });
+            console.log('✅ Appended checkpoint to main Notion page');
+        } catch (appendErr) {
+            console.warn(
+                '⚠️ Failed to append checkpoint to main page:',
+                appendErr.message || appendErr
+            );
+        }
+
 
         return res.json({
             success: true,
@@ -341,4 +355,5 @@ router.get('/', async (_req, res) => {
 module.exports = {
     router,
     createCheckpointPage,
+    appendCheckpointToMainPage,
 };
