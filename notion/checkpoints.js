@@ -3,6 +3,8 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../db/supabase');
 const { Client } = require('@notionhq/client');
+const NOTION_MAIN_PAGE_ID = process.env.NOTION_MAIN_PAGE_ID;
+
 
 // ────────────────────────────────────────────────
 // 🔧 Environment + Notion setup
@@ -21,6 +23,54 @@ const notion = new Client({ auth: NOTION_TOKEN });
 // ────────────────────────────────────────────────
 // 🧩 Helpers
 // ────────────────────────────────────────────────
+async function appendCheckpointToMainPage({
+    title,
+    summary,
+    status = 'Not started',
+    date = new Date(),
+    notionPageId,
+}) {
+    if (!NOTION_TOKEN) throw new Error('NOTION_TOKEN missing');
+    if (!NOTION_MAIN_PAGE_ID) throw new Error('NOTION_MAIN_PAGE_ID missing');
+    if (!notionPageId) throw new Error('notionPageId missing');
+
+    const isoDate = date.toISOString().split('T')[0];
+    const pageUrl = `https://www.notion.so/${String(notionPageId).replace(/-/g, '')}`;
+
+    await notion.blocks.children.append({
+        block_id: NOTION_MAIN_PAGE_ID,
+        children: [
+            {
+                object: 'block',
+                heading_3: {
+                    rich_text: [
+                        { type: 'text', text: { content: title || 'Untitled checkpoint' } },
+                    ],
+                },
+            },
+            {
+                object: 'block',
+                paragraph: {
+                    rich_text: [
+                        { type: 'text', text: { content: `Status: ${status} · Date: ${isoDate}` } },
+                    ],
+                },
+            },
+            {
+                object: 'block',
+                paragraph: {
+                    rich_text: [
+                        {
+                            type: 'text',
+                            text: { content: summary || '(no summary)', link: { url: pageUrl } },
+                        },
+                    ],
+                },
+            },
+            { object: 'block', divider: {} },
+        ],
+    });
+}
 
 async function createCheckpointPage({
     title,
@@ -88,59 +138,6 @@ async function createCheckpointPage({
             },
         ],
     });
-
-    const NOTION_MAIN_PAGE_ID = process.env.NOTION_MAIN_PAGE_ID;
-
-    async function appendCheckpointToMainPage({
-        title,
-        summary,
-        status = 'Not started',
-        date = new Date(),
-        notionPageId,
-    }) {
-        if (!NOTION_TOKEN) throw new Error('NOTION_TOKEN missing');
-        if (!NOTION_MAIN_PAGE_ID) throw new Error('NOTION_MAIN_PAGE_ID missing');
-        if (!notionPageId) throw new Error('notionPageId missing');
-
-        const isoDate = date.toISOString().split('T')[0];
-        const pageUrl = `https://www.notion.so/${String(notionPageId).replace(/-/g, '')}`;
-
-        await notion.blocks.children.append({
-            block_id: NOTION_MAIN_PAGE_ID,
-            children: [
-                {
-                    object: 'block',
-                    heading_3: {
-                        rich_text: [
-                            { type: 'text', text: { content: title || 'Untitled checkpoint' } },
-                        ],
-                    },
-                },
-                {
-                    object: 'block',
-                    paragraph: {
-                        rich_text: [
-                            { type: 'text', text: { content: `Status: ${status} · Date: ${isoDate}` } },
-                        ],
-                    },
-                },
-                {
-                    object: 'block',
-                    paragraph: {
-                        rich_text: [
-                            {
-                                type: 'text',
-                                text: { content: summary || '(no summary)', link: { url: pageUrl } },
-                            },
-                        ],
-                    },
-                },
-                { object: 'block', divider: {} },
-            ],
-        });
-    }
-
-
 
     return page;
 }
