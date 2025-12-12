@@ -15,7 +15,7 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json({ type: '*/*' }));
-app.use('/legal', express.static(path.join(__dirname, 'public')));
+app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // Import from /notion because you have no /routes folder
 const { router: checkpointsRouter, createCheckpointPage } = require('./notion/checkpoints');
