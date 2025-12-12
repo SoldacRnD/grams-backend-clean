@@ -963,40 +963,55 @@ document.addEventListener('DOMContentLoaded', () => {
                 const extra_images = extraProductImages
                     .map(img => img.url)
                     .filter(Boolean);
-                const isUpdate = !!existingGrams.find(g => g.id === gramId)?.shopify_product_id;
-                const method = isUpdate ? "PUT" : "POST";
-                const res = await fetch(
-                    `${BACKEND_BASE}/api/producer/grams/${encodeURIComponent(gramId)}/shopify-product`,
-                    {
+
+                const url = `${BACKEND_BASE}/api/producer/grams/${encodeURIComponent(gramId)}/shopify-product`;
+
+                const payload = {
+                    price,
+                    status,
+                    vendor,
+                    product_type,
+                    extra_tags: extraTags,
+                    seo_title,
+                    seo_description,
+                    extra_images,
+                    collection_ids,
+                    replace_images: true
+                };
+
+                async function call(method) {
+                    const res = await fetch(url, {
                         method,
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            price,
-                            status,
-                            vendor,
-                            product_type,
-                            extra_tags: extraTags,
-                            seo_title,
-                            seo_description,
-                            extra_images,
-                            collection_ids,
-                        })
-                    }
-                );
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    return { res, data };
+                }
 
-                const data = await res.json().catch(() => ({}));
+                // 1) Try CREATE
+                let { res, data } = await call("POST");
+                let didUpdate = false;
+
+                // 2) If already exists, retry UPDATE
+                if (!res.ok && data?.error === "PRODUCT_ALREADY_CREATED") {
+                    ({ res, data } = await call("PUT"));
+                    didUpdate = true;
+                }
+
                 if (!res.ok || !data.ok) {
                     alert(
-                        "Failed to create Shopify product: " +
+                        "Failed to sync Shopify product: " +
                         (data.error || res.status) +
                         (data.details ? "\nDetails: " + data.details : "")
                     );
-                    console.error("Create Shopify product error:", data);
+                    console.error("Shopify sync error:", data);
                     return;
                 }
 
-                alert(`Shopify product ${isUpdate ? "updated" : "created"} successfully!`);
+                alert(`Shopify product ${didUpdate ? "updated" : "created"} successfully ✅`);
                 renderShopifyProductStatus(data.gram);
+
 
             } catch (err) {
                 console.error("Error creating Shopify product:", err);
