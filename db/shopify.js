@@ -166,9 +166,146 @@ async function createProductForGram(
         product,
     };
 }
+/**
+ * Update an existing Shopify product for a given Gram.
+ * Returns { product }.
+ *
+ * Supports:
+ * - title, body_html, status, vendor, product_type, tags
+ * - SEO fields
+ * - images (main + extra)
+ * - variant price (uses stored variant_id if provided, else first variant)
+ */
+async function updateProductForGram(
+    gram,
+    {
+        product_id,
+        variant_id = null,
+        price = null,
+        status = null,
+        vendor = null,
+        product_type = null,
+        extra_tags = null,        // array or null (null = leave unchanged)
+        seo_title = null,
+        seo_description = null,
+        extra_images = null,      // array or null (null = leave unchanged)
+        replace_images = false,   // true = overwrite product images fully
+    } = {}
+) {
+    if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_ADMIN_TOKEN) {
+        throw new Error('Missing Shopify domain or admin token');
+    }
+    if (!gram || !gram.id) {
+        throw new Error('Gram is required');
+    }
+    if (!product_id) {
+        throw new Error('product_id is required to update');
+    }
+
+    // 1) Fetch current product (so we can preserve fields if not provided)
+    const getUrl = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_ADMIN_VERSION}/products/${product_id}.json`;
+    const existingRes = await axios.get(getUrl, {
+        headers: {
+            'X-Shopify-Access-Token': SHOPIFY_ADMIN_TOKEN,
+            'Content-Type': 'application/json',
+        },
+    });
+
+    const existing = existingRes.data.product;
+    if (!existing) throw new Error('Product not found in Shopify');
+
+    // 2) Tags: keep base tags always, optionally merge extras
+    const baseTags = ['gram-of-art', `gram-id:${gram.id}`];
+
+    let tagsString = existing.tags || '';
+    if (Array.isArray(extra_tags)) {
+        const currentTags = (existing.tags || '')
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean);
+
+        const merged = Array.from(new Set([...baseTags, ...currentTags, ...extra_tags]));
+        tagsString = merged.join(', ');
+    } else {
+        // ensure base tags exist even if we "leave unchanged"
+        const currentTags = (existing.tags || '')
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean);
+        const merged = Array.from(new Set([...baseTags, ...currentTags]));
+        tagsString = merged.join(', ');
+    }
+
+    // 3) Images
+    let images = undefined;
+    if (replace_images === true) {
+        const imgs = [];
+        if (gram.image_url) imgs.push({ src: gram.image_url });
+        if (Array.isArray(extra_images)) {
+            for (const src of extra_images) imgs.push({ src });
+        }
+        images = imgs;
+    } else if (Array.isArray(extra_images)) {
+        // If not replacing, we can append by re-sending combined (Shopify REST images has quirks),
+        // safest predictable behavior is "replace" — so we only do this when explicitly asked.
+        const imgs = [];
+        if (gram.image_url) imgs.push({ src: gram.image_url });
+        for (const img of existing.images || []) {
+            if (img?.src) imgs.push({ src: img.src });
+        }
+        for (const src of extra_images) imgs.push({ src });
+        images = imgs;
+    }
+
+    // 4) Variant price update
+    const targetVariantId =
+        variant_id ||
+        (existing.variants && existing.variants[0] && existing.variants[0].id) ||
+        null;
+
+    const variants =
+        price != null && targetVariantId
+            ? [{ id: targetVariantId, price: String(price) }]
+            : undefined;
+
+    // 5) Build update payload (only set fields you intend)
+    const updateUrl = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_ADMIN_VERSION}/products/${product_id}.json`;
+
+    const payload = {
+        product: {
+            id: product_id,
+
+            title: gram.title ?? existing.title,
+            body_html: gram.description ?? existing.body_html,
+
+            status: status ?? existing.status,
+            vendor: vendor ?? existing.vendor,
+            product_type: product_type ?? existing.product_type,
+
+            tags: tagsString,
+
+            metafields_global_title_tag: seo_title ?? existing.metafields_global_title_tag,
+            metafields_global_description_tag:
+                seo_description ?? existing.metafields_global_description_tag,
+
+            ...(images ? { images } : {}),
+            ...(variants ? { variants } : {}),
+        },
+    };
+
+    const res = await axios.put(updateUrl, payload, {
+        headers: {
+            'X-Shopify-Access-Token': SHOPIFY_ADMIN_TOKEN,
+            'Content-Type': 'application/json',
+        },
+    });
+
+    return { product: res.data.product };
+}
 
 // 👈 THIS IS CRUCIAL: export BOTH functions as properties
 module.exports = {
     listProducts,
     createProductForGram,
+    updateProductForGram,
 };

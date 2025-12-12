@@ -963,10 +963,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const extra_images = extraProductImages
                     .map(img => img.url)
                     .filter(Boolean);
+                const isUpdate = !!existingGrams.find(g => g.id === gramId)?.shopify_product_id;
+                const method = isUpdate ? "PUT" : "POST";
                 const res = await fetch(
                     `${BACKEND_BASE}/api/producer/grams/${encodeURIComponent(gramId)}/shopify-product`,
                     {
-                        method: "POST",
+                        method,
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             price,
@@ -993,7 +995,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                alert("Shopify product created successfully!");
+                alert(`Shopify product ${isUpdate ? "updated" : "created"} successfully!`);
                 renderShopifyProductStatus(data.gram);
 
             } catch (err) {

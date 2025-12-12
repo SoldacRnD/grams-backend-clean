@@ -7,7 +7,7 @@ const fetch = require('node-fetch');
 const FormData = require('form-data');
 const { SupabaseDB, supabase } = require('./db/supabase'); // using Supabase now
 const newId = require('./utils/id');
-const { listProducts, createProductForGram } = require('./db/shopify');
+const { listProducts, createProductForGram, updateProductForGram } = require('./db/shopify');
 const PORT = process.env.PORT || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 const app = express();
@@ -279,6 +279,61 @@ app.post('/api/producer/grams/:gramId/shopify-product', async (req, res) => {
     }
 });
 
+// Update existing Shopify product for a Gram (sync edits)
+app.put('/api/producer/grams/:gramId/shopify-product', async (req, res) => {
+    try {
+        const { gramId } = req.params;
+
+        const {
+            price = null,
+            status = null,
+            vendor = null,
+            product_type = null,
+            extra_tags = null,
+            seo_title = null,
+            seo_description = null,
+            extra_images = null,
+            replace_images = false,
+        } = req.body || {};
+
+        // Load gram
+        const { data: gram, error } = await supabase
+            .from('grams')
+            .select('*')
+            .eq('id', gramId)
+            .single();
+
+        if (error || !gram) return res.status(404).json({ error: 'Gram not found' });
+        if (!gram.shopify_product_id) {
+            return res.status(400).json({ error: 'This gram is not linked to a Shopify product yet.' });
+        }
+
+        const result = await updateProductForGram(gram, {
+            product_id: gram.shopify_product_id,
+            variant_id: gram.shopify_variant_id || null,
+            price,
+            status,
+            vendor,
+            product_type,
+            extra_tags,
+            seo_title,
+            seo_description,
+            extra_images,
+            replace_images,
+        });
+
+        // optional: store sync timestamp
+        await supabase
+            .from('grams')
+            .update({ last_shopify_sync_at: new Date().toISOString() })
+            .eq('id', gramId);
+
+        res.json({ ok: true, product: result.product });
+    } catch (e) {
+        console.error('Update Shopify product failed:', e.response?.data || e.message || e);
+        res.status(500).json({ error: 'Failed to update Shopify product' });
+    }
+});
 
 
 // -----------------------------------------------------------------------------
