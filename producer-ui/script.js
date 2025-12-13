@@ -989,28 +989,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     return { res, data };
                 }
 
-                // 1) Try CREATE
+                // 1️⃣ Always try CREATE first
                 let { res, data } = await call("POST");
                 let didUpdate = false;
 
-                // 2) If already exists, retry UPDATE
+                // 2️⃣ If product already exists → UPDATE instead
                 if (!res.ok && data?.error === "PRODUCT_ALREADY_CREATED") {
                     ({ res, data } = await call("PUT"));
                     didUpdate = true;
                 }
 
+                // 3️⃣ Final failure check
                 if (!res.ok || !data.ok) {
                     alert(
                         "Failed to sync Shopify product: " +
-                        (data.error || res.status) +
-                        (data.details ? "\nDetails: " + data.details : "")
+                        (data.error || res.status)
                     );
                     console.error("Shopify sync error:", data);
                     return;
                 }
 
+                // 4️⃣ Success
                 alert(`Shopify product ${didUpdate ? "updated" : "created"} successfully ✅`);
                 renderShopifyProductStatus(data.gram);
+                updateShopifyButtonLabel(data.gram);
 
 
             } catch (err) {
@@ -1086,6 +1088,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 populateFormFromGram(gram);
                 syncUploadedSelectionForGram(gram);
                 renderShopifyProductStatus(gram);
+                updateShopifyButtonLabel(gram);
 
 
             } catch (e) {
@@ -1093,6 +1096,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert("Error loading Gram");
             }
         };
+    }
+    function updateShopifyButtonLabel(gram) {
+        const btn = document.getElementById("create-shopify-product-btn");
+        if (!btn) return;
+
+        btn.textContent = gram?.shopify_product_id
+            ? "Update Shopify Product"
+            : "Create Shopify Product from this Gram";
     }
 
 
