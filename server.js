@@ -11,6 +11,8 @@ const { listProducts, createProductForGram, updateProductForGram } = require('./
 const PORT = process.env.PORT || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 const app = express();
+const { listProducts, createProductForGram, updateProductForGram, syncGramMetafieldsToShopify } = require('./db/shopify');
+
 
 // Middleware
 app.use(cors());
@@ -166,6 +168,31 @@ app.post('/api/producer/grams/:gramId/products', async (req, res) => {
         res.status(500).json({ ok: false, error: 'GRAM_PRODUCT_LINK_ERROR' });
     }
 });
+
+// Sync Gram metadata into Shopify product metafields
+app.post('/api/producer/grams/:gramId/shopify-metafields', async (req, res) => {
+    try {
+        const { gramId } = req.params;
+
+        const { data: gram, error } = await supabase
+            .from('grams')
+            .select('*')
+            .eq('id', gramId)
+            .single();
+
+        if (error || !gram) return res.status(404).json({ ok: false, error: 'Gram not found' });
+        if (!gram.shopify_product_id) {
+            return res.status(400).json({ ok: false, error: 'Gram not linked to Shopify product yet' });
+        }
+
+        const metafields = await syncGramMetafieldsToShopify(gram);
+        return res.json({ ok: true, metafields });
+    } catch (e) {
+        console.error('Metafields sync error:', e.response?.data || e.message || e);
+        return res.status(500).json({ ok: false, error: 'Failed to sync metafields' });
+    }
+});
+
 
 // DELETE /api/grams/:gramId/products/:linkId
 app.delete('/api/producer/grams/:gramId/products/:linkId', async (req, res) => {

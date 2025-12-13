@@ -1018,6 +1018,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert(`Shopify product ${didUpdate ? "updated" : "created"} successfully ✅`);
                 renderShopifyProductStatus(data.gram);
                 updateShopifyButtonLabel(data.gram);
+                const mfRes = await fetch(`${BACKEND_BASE}/api/producer/grams/${encodeURIComponent(gramId)}/shopify-metafields`, { method: "POST" });
+                const mfData = await mfRes.json().catch(() => ({}));
+                if (!mfRes.ok || !mfData.ok) console.warn("Metafields sync failed:", mfData);
+
 
 
             } catch (err) {

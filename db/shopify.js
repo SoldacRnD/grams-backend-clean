@@ -302,10 +302,88 @@ async function updateProductForGram(
 
     return { product: res.data.product };
 }
+// metafield upsert helper
+async function upsertMetafieldsForProduct(product_id, metafields = []) {
+    if (!product_id) throw new Error("product_id required");
+
+    const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_ADMIN_VERSION}/metafields.json`;
+
+    const results = [];
+    for (const mf of metafields) {
+        const payload = {
+            metafield: {
+                owner_id: product_id,
+                owner_resource: "product",
+                namespace: mf.namespace,
+                key: mf.key,
+                type: mf.type,      // e.g. "single_line_text_field", "json", "number_integer"
+                value: mf.value
+            }
+        };
+
+        const res = await axios.post(url, payload, {
+            headers: {
+                "X-Shopify-Access-Token": SHOPIFY_ADMIN_TOKEN,
+                "Content-Type": "application/json"
+            }
+        });
+
+        results.push(res.data.metafield);
+    }
+
+    return results;
+}
+
+async function syncGramMetafieldsToShopify(gram) {
+    if (!gram?.shopify_product_id) {
+        throw new Error("Gram has no shopify_product_id");
+    }
+
+    const metafields = [
+        {
+            namespace: "gram",
+            key: "gram_id",
+            type: "single_line_text_field",
+            value: String(gram.id || "")
+        },
+        {
+            namespace: "gram",
+            key: "slug",
+            type: "single_line_text_field",
+            value: String(gram.slug || "")
+        },
+        {
+            namespace: "gram",
+            key: "nfc_tag_id",
+            type: "single_line_text_field",
+            value: String(gram.nfc_tag_id || "")
+        },
+        {
+            namespace: "gram",
+            key: "effects",
+            type: "json",
+            value: JSON.stringify(gram.effects || {})
+        },
+        {
+            namespace: "gram",
+            key: "perks",
+            type: "json",
+            value: JSON.stringify(Array.isArray(gram.perks) ? gram.perks : [])
+        }
+    ];
+
+    // Filter out empty strings where it makes sense
+    const cleaned = metafields.filter(mf => mf.value !== "");
+
+    const saved = await upsertMetafieldsForProduct(gram.shopify_product_id, cleaned);
+    return saved;
+}
+
 
 // 👈 THIS IS CRUCIAL: export BOTH functions as properties
 module.exports = {
     listProducts,
     createProductForGram,
     updateProductForGram,
+    syncGramMetafieldsToShopify,
 };
