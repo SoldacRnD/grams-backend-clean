@@ -85,7 +85,10 @@ function populateFormFromGram(gram) {
         }
     }
     // 🔗 finally: load linked Shopify products for this Gram
+    renderShopifyProductStatus(gram);
     loadLinkedProducts();
+    updateShopifyButtonLabel(gram);
+    
 }
 function setEditingMode(gramOrNull) {
     const idInput = document.getElementById("id");
@@ -892,6 +895,14 @@ async function loadExistingGrams() {
         console.error('Error loading existing grams:', e);
     }
 }
+function updateShopifyButtonLabel(gram) {
+    const btn = document.getElementById("create-shopify-product-btn");
+    if (!btn) return;
+
+    btn.textContent = gram?.shopify_product_id
+        ? "Update Shopify Product"
+        : "Create Shopify Product from this Gram";
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Producer UI loaded, backend base =', BACKEND_BASE);
@@ -946,12 +957,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const seo_descriptionInput = document.getElementById("shopify-seo-description");
             const seo_title = seoTitleInput?.value.trim() || null;
             const seo_description = seo_descriptionInput?.value.trim() || null;
-
-            const extraImagesInput = document.getElementById("shopify-extra-images");
-            const extra_images = (extraImagesInput?.value || "")
-                .split(",")
-                .map(u => u.trim())
-                .filter(Boolean);
 
             const collectionsInput = document.getElementById("shopify-collection-ids");
             const collection_ids = (collectionsInput?.value || "")
@@ -1026,6 +1031,8 @@ document.addEventListener('DOMContentLoaded', () => {
         clearEditBtn.onclick = () => {
             // Exit editing mode
             setEditingMode(null);
+            // ✅ reset Shopify button label back to "Create"
+            updateShopifyButtonLabel(null);
             // 🔗 clear linked products state
             currentGramId = null;
             renderLinkedProducts([]); // if panel exists, show "No products linked yet."
@@ -1096,14 +1103,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert("Error loading Gram");
             }
         };
-    }
-    function updateShopifyButtonLabel(gram) {
-        const btn = document.getElementById("create-shopify-product-btn");
-        if (!btn) return;
-
-        btn.textContent = gram?.shopify_product_id
-            ? "Update Shopify Product"
-            : "Create Shopify Product from this Gram";
     }
 
 
