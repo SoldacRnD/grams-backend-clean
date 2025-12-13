@@ -429,8 +429,6 @@ async function syncGramMetafieldsToShopify(gram) {
     }
 
     return result.metafields || [];
-
-    return result.metafields;
 }
 
 
