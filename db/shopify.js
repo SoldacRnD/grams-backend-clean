@@ -406,11 +406,6 @@ async function syncGramMetafieldsToShopify(gram) {
             }
         }
     );
-
-    const result = res.data?.data?.metafieldsSet;
-    if (result?.userErrors?.length) {
-        throw new Error(JSON.stringify(result.userErrors));
-    }
     // ✅ 1) Catch GraphQL top-level errors
     if (res.data?.errors?.length) {
         throw new Error("GraphQL errors: " + JSON.stringify(res.data.errors));
