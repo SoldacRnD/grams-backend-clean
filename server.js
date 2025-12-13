@@ -7,7 +7,6 @@ const fetch = require('node-fetch');
 const FormData = require('form-data');
 const { SupabaseDB, supabase } = require('./db/supabase'); // using Supabase now
 const newId = require('./utils/id');
-const { listProducts, createProductForGram, updateProductForGram } = require('./db/shopify');
 const PORT = process.env.PORT || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 const app = express();
