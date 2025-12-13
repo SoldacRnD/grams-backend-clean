@@ -339,32 +339,53 @@ async function syncGramMetafieldsToShopify(gram) {
         throw new Error("Gram has no shopify_product_id");
     }
 
+    const mutation = `
+    mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $metafields) {
+        metafields {
+          namespace
+          key
+          value
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+
     const metafields = [
         {
+            ownerId: `gid://shopify/Product/${gram.shopify_product_id}`,
             namespace: "gram",
             key: "gram_id",
             type: "single_line_text_field",
             value: String(gram.id || "")
         },
         {
+            ownerId: `gid://shopify/Product/${gram.shopify_product_id}`,
             namespace: "gram",
             key: "slug",
             type: "single_line_text_field",
             value: String(gram.slug || "")
         },
         {
+            ownerId: `gid://shopify/Product/${gram.shopify_product_id}`,
             namespace: "gram",
             key: "nfc_tag_id",
             type: "single_line_text_field",
             value: String(gram.nfc_tag_id || "")
         },
         {
+            ownerId: `gid://shopify/Product/${gram.shopify_product_id}`,
             namespace: "gram",
             key: "effects",
             type: "json",
             value: JSON.stringify(gram.effects || {})
         },
         {
+            ownerId: `gid://shopify/Product/${gram.shopify_product_id}`,
             namespace: "gram",
             key: "perks",
             type: "json",
@@ -372,12 +393,28 @@ async function syncGramMetafieldsToShopify(gram) {
         }
     ];
 
-    // Filter out empty strings where it makes sense
-    const cleaned = metafields.filter(mf => mf.value !== "");
+    const res = await axios.post(
+        `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_ADMIN_VERSION}/graphql.json`,
+        {
+            query: mutation,
+            variables: { metafields }
+        },
+        {
+            headers: {
+                "X-Shopify-Access-Token": SHOPIFY_ADMIN_TOKEN,
+                "Content-Type": "application/json"
+            }
+        }
+    );
 
-    const saved = await upsertMetafieldsForProduct(gram.shopify_product_id, cleaned);
-    return saved;
+    const result = res.data?.data?.metafieldsSet;
+    if (result?.userErrors?.length) {
+        throw new Error(JSON.stringify(result.userErrors));
+    }
+
+    return result.metafields;
 }
+
 
 
 // 👈 THIS IS CRUCIAL: export BOTH functions as properties
