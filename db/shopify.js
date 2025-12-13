@@ -411,6 +411,24 @@ async function syncGramMetafieldsToShopify(gram) {
     if (result?.userErrors?.length) {
         throw new Error(JSON.stringify(result.userErrors));
     }
+    // ✅ 1) Catch GraphQL top-level errors
+    if (res.data?.errors?.length) {
+        throw new Error("GraphQL errors: " + JSON.stringify(res.data.errors));
+    }
+
+    const result = res.data?.data?.metafieldsSet;
+
+    // ✅ 2) Catch missing result (also a failure)
+    if (!result) {
+        throw new Error("No metafieldsSet result: " + JSON.stringify(res.data));
+    }
+
+    // ✅ 3) Catch Shopify userErrors
+    if (result.userErrors?.length) {
+        throw new Error("metafieldsSet userErrors: " + JSON.stringify(result.userErrors));
+    }
+
+    return result.metafields || [];
 
     return result.metafields;
 }
