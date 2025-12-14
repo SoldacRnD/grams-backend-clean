@@ -869,13 +869,10 @@ app.post("/api/perks/redeem", async (req, res) => {
         }
 
         if (perk.type === "shopify_free_product") {
-            console.log("[redeem] creating BXGY free product discount in Shopify");
-
             const variantId = perk.metadata?.variant_id;
-            const qty = perk.metadata?.quantity ?? 1;
+            const qty = Number(perk.metadata?.quantity ?? 1);
 
             if (!variantId) {
-                console.log("[redeem] missing variant_id");
                 return res.status(400).json({ ok: false, error: "Missing variant_id" });
             }
 
@@ -883,16 +880,17 @@ app.post("/api/perks/redeem", async (req, res) => {
                 code,
                 title,
                 variantIdNumeric: String(variantId),
-                quantity: Number(qty),
+                quantity: qty,
                 usageLimit: perk.metadata?.usage_limit ?? 1,
             });
 
-            console.log("[redeem] BXGY discount created", { discountNodeId });
-
             const shop = process.env.SHOP_DOMAIN || "https://www.soldacstudio.com";
-            checkoutUrl = `${shop}/discount/${encodeURIComponent(code)}?redirect=/cart`;
 
+            // ✅ FORCE add item to cart + apply code
+            checkoutUrl = `${shop}/cart/${variantId}:${qty}?discount=${encodeURIComponent(code)}`;
         }
+        return res.json({ ok: true, checkout_url: checkoutUrl, code });
+
 
         if (!checkoutUrl) {
             console.log("[redeem] unsupported perk type or checkoutUrl not set", perk.type);
