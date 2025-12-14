@@ -493,7 +493,7 @@ async function createBasicDiscountCode({
 
     const customerGetsValue =
         kind === "percent"
-            ? { percentage: Number(value) }
+            ? { percentage: Number(value) / 100 }
             : { fixedAmount: { amount: String(value), appliesOnEachItem: false } };
 
     const input = {
