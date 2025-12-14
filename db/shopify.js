@@ -480,6 +480,7 @@ async function createBasicDiscountCode({
     usageLimit = 1,
     startsAt = new Date().toISOString(),
     endsAt = null,
+    appliesOncePerCustomer = false,
 }) {
     const mutation = `
     mutation discountCodeBasicCreate($basicCodeDiscount: DiscountCodeBasicInput!) {
@@ -490,10 +491,10 @@ async function createBasicDiscountCode({
     }
   `;
 
-    const customerGets =
+    const customerGetsValue =
         kind === "percent"
-            ? { value: { percentage: Number(value) } }
-            : { value: { fixedAmount: { amount: String(value), appliesOnEachItem: false } } };
+            ? { percentage: Number(value) }
+            : { fixedAmount: { amount: String(value), appliesOnEachItem: false } };
 
     const input = {
         title,
@@ -502,15 +503,14 @@ async function createBasicDiscountCode({
         ...(endsAt ? { endsAt } : {}),
         usageLimit: Number(usageLimit),
         customerSelection: { all: true },
+
+        // ✅ Basic discount only needs customerGets
         customerGets: {
-            items: { all: true }, // entire order
-            value: customerGets.value,
+            items: { all: true }, // applies to entire order
+            value: customerGetsValue,
         },
-        customerBuys: {
-            items: { all: true },
-            value: { quantity: 1 },
-        },
-        appliesOncePerCustomer: false,
+
+        appliesOncePerCustomer: !!appliesOncePerCustomer,
     };
 
     const data = await shopifyGraphql(mutation, { basicCodeDiscount: input });
@@ -519,6 +519,7 @@ async function createBasicDiscountCode({
     if (out.userErrors?.length) throw new Error(JSON.stringify(out.userErrors));
     return out.codeDiscountNode.id;
 }
+
 async function createBxgyFreeProductCode({
     code,
     title,
