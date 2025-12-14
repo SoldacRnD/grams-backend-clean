@@ -760,10 +760,15 @@ const {
 } = require("./db/shopify");
 
 app.post("/api/perks/redeem", async (req, res) => {
+    const startedAt = Date.now();
+
     try {
         const { gram_id, perk_id, redeemer_fingerprint } = req.body;
 
+        console.log("[redeem] START", { gram_id, perk_id });
+
         if (!gram_id || !perk_id) {
+            console.log("[redeem] missing gram_id/perk_id");
             return res.status(400).json({ ok: false, error: "Missing gram_id or perk_id" });
         }
 
@@ -771,23 +776,38 @@ app.post("/api/perks/redeem", async (req, res) => {
             redeemer_fingerprint ||
             crypto.createHash("sha256").update(req.ip || "anon").digest("hex");
 
+        console.log("[redeem] fingerprint", fp.slice(0, 8) + "...");
+
         // load gram (and perks)
+        console.log("[redeem] loading gram from Supabase");
         const { data: gram, error } = await supabase
             .from("grams")
             .select("*")
             .eq("id", gram_id)
             .single();
 
-        if (error || !gram) return res.status(404).json({ ok: false, error: "Gram not found" });
+        if (error || !gram) {
+            console.log("[redeem] gram not found", error);
+            return res.status(404).json({ ok: false, error: "Gram not found" });
+        }
+
+        console.log("[redeem] gram loaded", { id: gram.id, perksCount: Array.isArray(gram.perks) ? gram.perks.length : 0 });
 
         const perks = Array.isArray(gram.perks) ? gram.perks : [];
         const perk = perks.find((p) => p.id === perk_id);
-        if (!perk) return res.status(404).json({ ok: false, error: "Perk not found on gram" });
+
+        if (!perk) {
+            console.log("[redeem] perk not found on gram", perk_id);
+            return res.status(404).json({ ok: false, error: "Perk not found on gram" });
+        }
+
+        console.log("[redeem] perk found", { type: perk.type, cooldown: perk.cooldown_seconds, metadata: perk.metadata });
 
         const cooldown = Number(perk.cooldown_seconds || 0);
 
         // cooldown check
-        const { data: last } = await supabase
+        console.log("[redeem] checking cooldown");
+        const { data: last, error: lastErr } = await supabase
             .from("redemptions")
             .select("redeemed_at")
             .eq("gram_id", gram_id)
@@ -796,11 +816,15 @@ app.post("/api/perks/redeem", async (req, res) => {
             .order("redeemed_at", { ascending: false })
             .limit(1);
 
+        if (lastErr) console.log("[redeem] cooldown query error", lastErr);
+
         if (last?.length) {
             const lastTime = new Date(last[0].redeemed_at).getTime();
             const now = Date.now();
+
             if (cooldown > 0 && now - lastTime < cooldown * 1000) {
                 const remaining = Math.ceil((cooldown * 1000 - (now - lastTime)) / 1000);
+                console.log("[redeem] COOLDOWN active", { remaining });
                 return res.status(429).json({ ok: false, error: "COOLDOWN", remaining_seconds: remaining });
             }
         }
@@ -809,14 +833,22 @@ app.post("/api/perks/redeem", async (req, res) => {
         const code = `GRAM-${gram_id}-${perk_id}-${crypto.randomBytes(3).toString("hex")}`.toUpperCase();
         const title = perk?.metadata?.title || `Gram perk ${gram_id} ${perk_id}`;
 
+        console.log("[redeem] generated code", code);
+
         let discountNodeId = null;
         let checkoutUrl = null;
 
         // Create discount based on perk type
         if (perk.type === "shopify_discount") {
+            console.log("[redeem] creating BASIC discount in Shopify");
+
             const kind = perk.metadata?.kind || "percent";
             const value = perk.metadata?.value;
-            if (value == null) return res.status(400).json({ ok: false, error: "Missing discount value" });
+
+            if (value == null) {
+                console.log("[redeem] missing discount value");
+                return res.status(400).json({ ok: false, error: "Missing discount value" });
+            }
 
             discountNodeId = await createBasicDiscountCode({
                 code,
@@ -826,14 +858,22 @@ app.post("/api/perks/redeem", async (req, res) => {
                 usageLimit: perk.metadata?.usage_limit ?? 1,
             });
 
+            console.log("[redeem] BASIC discount created", { discountNodeId });
+
             // send them to cart with discount applied
             checkoutUrl = `${process.env.SHOP_DOMAIN || "https://www.soldacstudio.com"}/cart?discount=${encodeURIComponent(code)}`;
         }
 
         if (perk.type === "shopify_free_product") {
+            console.log("[redeem] creating BXGY free product discount in Shopify");
+
             const variantId = perk.metadata?.variant_id;
             const qty = perk.metadata?.quantity ?? 1;
-            if (!variantId) return res.status(400).json({ ok: false, error: "Missing variant_id" });
+
+            if (!variantId) {
+                console.log("[redeem] missing variant_id");
+                return res.status(400).json({ ok: false, error: "Missing variant_id" });
+            }
 
             discountNodeId = await createBxgyFreeProductCode({
                 code,
@@ -843,13 +883,20 @@ app.post("/api/perks/redeem", async (req, res) => {
                 usageLimit: perk.metadata?.usage_limit ?? 1,
             });
 
-            // add item to cart + apply discount code :contentReference[oaicite:4]{index=4}
+            console.log("[redeem] BXGY discount created", { discountNodeId });
+
             const shop = process.env.SHOP_DOMAIN || "https://www.soldacstudio.com";
             checkoutUrl = `${shop}/cart/${variantId}:${qty}?discount=${encodeURIComponent(code)}`;
         }
 
+        if (!checkoutUrl) {
+            console.log("[redeem] unsupported perk type or checkoutUrl not set", perk.type);
+            return res.status(400).json({ ok: false, error: "Unsupported perk type" });
+        }
+
         // record redemption
-        await supabase.from("redemptions").insert({
+        console.log("[redeem] inserting redemption row");
+        const { error: insErr } = await supabase.from("redemptions").insert({
             gram_id,
             perk_id,
             redeemer_fingerprint: fp,
@@ -857,8 +904,24 @@ app.post("/api/perks/redeem", async (req, res) => {
             metadata: { discountNodeId, type: perk.type },
         });
 
+        if (insErr) {
+            console.log("[redeem] redemption insert error", insErr);
+            return res.status(500).json({ ok: false, error: "Failed to record redemption", details: insErr });
+        }
+
+        console.log("[redeem] SUCCESS", { ms: Date.now() - startedAt, checkoutUrl });
+
+        // ✅ THIS WAS MISSING — without it the request hangs forever
+        return res.json({
+            ok: true,
+            code,
+            checkout_url: checkoutUrl,
+            discountNodeId,
+        });
+
     } catch (e) {
         const details = e?.response?.data || e?.message || String(e);
+        console.error("[redeem] FAILED", { ms: Date.now() - startedAt });
         console.error("Perk redeem error:", details);
 
         return res.status(500).json({
@@ -867,8 +930,8 @@ app.post("/api/perks/redeem", async (req, res) => {
             details
         });
     }
-
 });
+
 
 
 // Get next Gram ID (e.g. G001 → G002) based on existing records in Supabase
