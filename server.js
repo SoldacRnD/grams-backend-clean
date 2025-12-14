@@ -889,7 +889,7 @@ app.post("/api/perks/redeem", async (req, res) => {
             // ✅ FORCE add item to cart + apply code
             checkoutUrl = `${shop}/cart/${variantId}:${qty}?discount=${encodeURIComponent(code)}`;
         }
-
+        return res.json({ ok: true, checkout_url: checkoutUrl, code });
 
         if (!checkoutUrl) {
             console.log("[redeem] unsupported perk type or checkoutUrl not set", perk.type);
