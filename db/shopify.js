@@ -464,10 +464,16 @@ async function syncGramMetafieldsToShopify(gram) {
 }
 
 async function shopifyGraphql(query, variables = {}) {
-    const res = await shopifyHttp.post(
+    const res = await axios.post(
         `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_ADMIN_VERSION}/graphql.json`,
-        { query, variables }
-);
+        { query, variables },
+        {
+            headers: {
+                "X-Shopify-Access-Token": SHOPIFY_ADMIN_TOKEN,
+                "Content-Type": "application/json",
+            },
+        }
+    );
 
     if (res.data?.errors?.length) {
         throw new Error("GraphQL errors: " + JSON.stringify(res.data.errors));
