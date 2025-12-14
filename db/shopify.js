@@ -1,13 +1,5 @@
 // db/shopify.js
 const axios = require('axios');
-const shopifyHttp = axios.create({
-    timeout: 20000,
-    headers: {
-        "X-Shopify-Access-Token": SHOPIFY_ADMIN_TOKEN,
-        "Content-Type": "application/json",
-    }
-});
-
 
 const SHOPIFY_STORE_DOMAIN =
     process.env.SHOPIFY_STORE_DOMAIN || process.env.SHOPIFY_SHOP_DOMAIN; // e.g. soldacstudio.myshopify.com
@@ -18,6 +10,18 @@ const SHOPIFY_ADMIN_VERSION = '2025-01';
 if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_ADMIN_TOKEN) {
     console.warn('Missing SHOPIFY_STORE_DOMAIN or SHOPIFY_ADMIN_TOKEN env vars');
 }
+
+// ✅ timeouts (prevents hanging requests)
+axios.defaults.timeout = 20000;
+
+// ✅ create Shopify axios client AFTER token exists
+const shopifyHttp = axios.create({
+    timeout: 20000,
+    headers: {
+        "X-Shopify-Access-Token": SHOPIFY_ADMIN_TOKEN,
+        "Content-Type": "application/json",
+    }
+});
 
 /**
  * List Shopify products via REST Admin API.
@@ -464,15 +468,9 @@ async function syncGramMetafieldsToShopify(gram) {
 }
 
 async function shopifyGraphql(query, variables = {}) {
-    const res = await axios.post(
+    const res = await shopifyHttp.post(
         `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_ADMIN_VERSION}/graphql.json`,
-        { query, variables },
-        {
-            headers: {
-                "X-Shopify-Access-Token": SHOPIFY_ADMIN_TOKEN,
-                "Content-Type": "application/json",
-            },
-        }
+        { query, variables }
     );
 
     if (res.data?.errors?.length) {
@@ -480,6 +478,7 @@ async function shopifyGraphql(query, variables = {}) {
     }
     return res.data.data;
 }
+
 async function createBasicDiscountCode({
     code,
     title,
