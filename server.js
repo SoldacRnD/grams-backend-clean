@@ -756,7 +756,7 @@ app.post('/api/producer/grams', async (req, res) => {
 const crypto = require("crypto");
 const {
     createBasicDiscountCode,
-    createBxgyFreeProductCode,
+    createFreeVariant100DiscountCode,
 } = require("./db/shopify");
 
 app.post("/api/perks/redeem", async (req, res) => {
@@ -876,22 +876,21 @@ app.post("/api/perks/redeem", async (req, res) => {
                 return res.status(400).json({ ok: false, error: "Missing variant_id" });
             }
 
-            discountNodeId = await createBxgyFreeProductCode({
+            discountNodeId = await createFreeVariant100DiscountCode({
                 code,
                 title,
                 variantIdNumeric: String(variantId),
-                quantity: qty,
                 usageLimit: perk.metadata?.usage_limit ?? 1,
+                appliesOncePerCustomer: true, // optional; you can also rely on your redemptions cooldown
             });
 
             const shop = process.env.SHOP_DOMAIN || "https://www.soldacstudio.com";
-            checkoutUrl = `${shop}/discount/${encodeURIComponent(code)}?redirect=/cart/${variantId}:${qty}`;
 
-
-            // ✅ FORCE add item to cart + apply code
+            // ✅ add the variant to cart AND apply discount
             checkoutUrl = `${shop}/cart/${variantId}:${qty}?discount=${encodeURIComponent(code)}`;
         }
-        return res.json({ ok: true, checkout_url: checkoutUrl, code });
+
+        return res.json({ ok: true, redirect_url: checkoutUrl, code });
 
         if (!checkoutUrl) {
             console.log("[redeem] unsupported perk type or checkoutUrl not set", perk.type);
