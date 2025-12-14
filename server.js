@@ -917,7 +917,8 @@ app.post("/api/perks/redeem", async (req, res) => {
         return res.json({
             ok: true,
             code,
-            checkout_url: checkoutUrl
+            checkout_url: checkoutUrl,
+            redirect_url: checkoutUrl
         });
 
 
