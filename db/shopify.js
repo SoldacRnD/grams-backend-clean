@@ -531,7 +531,7 @@ async function createBxgyFreeProductCode({
     code,
     title,
     variantIdNumeric,
-    quantity = 1,
+    quantity = 1,        // we’ll use this as “buy quantity”
     usageLimit = 1,
     startsAt = new Date().toISOString(),
     endsAt = null,
@@ -545,7 +545,25 @@ async function createBxgyFreeProductCode({
     }
   `;
 
-    const variantGid = `gid://shopify/ProductVariant/${variantIdNumeric}`;
+    // Variant GID (used for customerBuys)
+    const variantGid = `gid://shopify/ProductVariant/${String(variantIdNumeric)}`;
+
+    // We must give Shopify a PRODUCT id for productsToAdd.
+    // So first resolve ProductVariant -> Product id
+    const lookupQuery = `
+    query getVariantProduct($id: ID!) {
+      productVariant(id: $id) {
+        id
+        product { id }
+      }
+    }
+  `;
+    const lookupData = await shopifyGraphql(lookupQuery, { id: variantGid });
+    const productGid = lookupData?.productVariant?.product?.id;
+
+    if (!productGid) {
+        throw new Error("Could not resolve product id from variant id");
+    }
 
     const input = {
         title,
@@ -555,15 +573,32 @@ async function createBxgyFreeProductCode({
         usageLimit: Number(usageLimit),
         customerSelection: { all: true },
 
+        // ✅ customerBuys: variant + quantity (MUST be string)
         customerBuys: {
-            items: { all: true }, // simplest: any purchase qualifies (you can tighten later)
-            value: { quantity: 1 },
+            items: {
+                products: {
+                    productVariantsToAdd: [variantGid],
+                },
+            },
+            value: {
+                quantity: String(quantity), // ✅ string required
+            },
         },
 
+        // ✅ customerGets: productsToAdd + discountOnQuantity(effect)
         customerGets: {
-            items: { products: { productVariantsToAdd: [variantGid] } },
-            value: { percentage: 100 },
-            quantity: Number(quantity),
+            items: {
+                products: {
+                    productsToAdd: [productGid],
+                },
+            },
+            value: {
+                discountOnQuantity: {
+                    effect: {
+                        percentage: 1.0, // ✅ 100% off (Shopify expects 0..1)
+                    },
+                },
+            },
         },
 
         appliesOncePerCustomer: false,
@@ -575,6 +610,7 @@ async function createBxgyFreeProductCode({
     if (out.userErrors?.length) throw new Error(JSON.stringify(out.userErrors));
     return out.codeDiscountNode.id;
 }
+
 
 
 

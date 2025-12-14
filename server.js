@@ -763,7 +763,7 @@ app.post("/api/perks/redeem", async (req, res) => {
     const startedAt = Date.now();
 
     try {
-        const { gram_id, perk_id, redeemer_fingerprint } = req.body;
+        const { gram_id, perk_id, redeemerKey } = req.body;
 
         console.log("[redeem] START", { gram_id, perk_id });
 
@@ -772,11 +772,12 @@ app.post("/api/perks/redeem", async (req, res) => {
             return res.status(400).json({ ok: false, error: "Missing gram_id or perk_id" });
         }
 
-        const fp =
-            redeemer_fingerprint ||
-            crypto.createHash("sha256").update(req.ip || "anon").digest("hex");
+        const redeemerKey =
+            req.body.redeemer_customer_id
+                ? `customer:${req.body.redeemer_customer_id}`
+                : crypto.createHash("sha256").update(req.ip || "anon").digest("hex");
 
-        console.log("[redeem] fingerprint", fp.slice(0, 8) + "...");
+        console.log("[redeem] fingerprint", redeemerKey.slice(0, 8) + "...");
 
         // load gram (and perks)
         console.log("[redeem] loading gram from Supabase");
@@ -812,7 +813,7 @@ app.post("/api/perks/redeem", async (req, res) => {
             .select("redeemed_at")
             .eq("gram_id", gram_id)
             .eq("perk_id", perk_id)
-            .eq("redeemer_fingerprint", fp)
+            .eq("redeemer_fingerprint", redeemerKey)
             .order("redeemed_at", { ascending: false })
             .limit(1);
 
@@ -902,7 +903,7 @@ app.post("/api/perks/redeem", async (req, res) => {
         const { error: insErr } = await supabase.from("redemptions").insert({
             gram_id,
             perk_id,
-            redeemer_fingerprint: fp,
+            redeemerKey: redeemerKey,
             shopify_discount_code: code,
             metadata: { discountNodeId, type: perk.type },
         });
