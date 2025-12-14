@@ -889,7 +889,6 @@ app.post("/api/perks/redeem", async (req, res) => {
             // ✅ FORCE add item to cart + apply code
             checkoutUrl = `${shop}/cart/${variantId}:${qty}?discount=${encodeURIComponent(code)}`;
         }
-        return res.json({ ok: true, checkout_url: checkoutUrl, code });
 
 
         if (!checkoutUrl) {
@@ -918,7 +917,7 @@ app.post("/api/perks/redeem", async (req, res) => {
         return res.json({
             ok: true,
             code,
-            redirect_url: checkoutUrl
+            checkout_url: checkoutUrl
         });
 
 
@@ -931,6 +930,8 @@ app.post("/api/perks/redeem", async (req, res) => {
             ok: false,
             error: "Failed to redeem perk",
             details
+
+
 
         });
     }
