@@ -520,18 +520,18 @@ async function createBasicDiscountCode({
     return out.codeDiscountNode.id;
 }
 
-async function createBxgyFreeProductCode({
+async function createFreeVariant100DiscountCode({
     code,
     title,
-    variantIdNumeric,
-    quantity = 1,
+    variantIdNumeric,   // numeric variant id e.g. "57057859240317"
     usageLimit = 1,
     startsAt = new Date().toISOString(),
     endsAt = null,
+    appliesOncePerCustomer = false,
 }) {
     const mutation = `
-    mutation discountCodeBxgyCreate($bxgyCodeDiscount: DiscountCodeBxgyInput!) {
-      discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyCodeDiscount) {
+    mutation discountCodeBasicCreate($basicCodeDiscount: DiscountCodeBasicInput!) {
+      discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
         codeDiscountNode { id }
         userErrors { field message }
       }
@@ -548,38 +548,22 @@ async function createBxgyFreeProductCode({
         usageLimit: Number(usageLimit),
         customerSelection: { all: true },
 
-        // must be string in some schemas (UnsignedInt64)
-        customerBuys: {
-            items: { all: true },
-            value: { quantity: "1" },
-        },
-
+        // ✅ apply discount ONLY to this variant
         customerGets: {
-            // ✅ this is the key fix: DiscountProductsInput uses productVariantsToAdd/productsToAdd
-            items: {
-                products: {
-                    productVariantsToAdd: [variantGid],
-                },
-            },
-
-            // ✅ free item via discountOnQuantity
-            value: {
-                discountOnQuantity: {
-                    quantity: String(quantity), // must be string
-                    effect: { percentage: 1.0 }, // 1.0 = 100% off
-                },
-            },
+            items: { productVariants: { productVariantsToAdd: [variantGid] } },
+            value: { percentage: 1.0 }, // ✅ 1.0 = 100%
         },
 
-        appliesOncePerCustomer: false,
+        appliesOncePerCustomer: !!appliesOncePerCustomer,
     };
 
-    const data = await shopifyGraphql(mutation, { bxgyCodeDiscount: input });
-    const out = data.discountCodeBxgyCreate;
+    const data = await shopifyGraphql(mutation, { basicCodeDiscount: input });
+    const out = data.discountCodeBasicCreate;
 
     if (out.userErrors?.length) throw new Error(JSON.stringify(out.userErrors));
     return out.codeDiscountNode.id;
 }
+
 
 
 async function getProductIdFromVariantNumeric(variantIdNumeric) {
@@ -603,4 +587,5 @@ module.exports = {
     syncGramMetafieldsToShopify,
     createBasicDiscountCode,
     createBxgyFreeProductCode,
+    createFreeVariant100DiscountCode,
 };
