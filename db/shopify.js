@@ -7,13 +7,6 @@ const SHOPIFY_STORE_DOMAIN =
 const SHOPIFY_ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;           // same token you use for GraphQL
 const SHOPIFY_ADMIN_VERSION = '2025-01';
 
-if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_ADMIN_TOKEN) {
-    console.warn('Missing SHOPIFY_STORE_DOMAIN or SHOPIFY_ADMIN_TOKEN env vars');
-}
-
-// ✅ timeouts (prevents hanging requests)
-axios.defaults.timeout = 20000;
-
 // ✅ create Shopify axios client AFTER token exists
 const shopifyHttp = axios.create({
     timeout: 20000,
@@ -531,7 +524,7 @@ async function createBxgyFreeProductCode({
     code,
     title,
     variantIdNumeric,
-    quantity = 1,        // we’ll use this as “buy quantity”
+    quantity = 1,      // how many free items max (we’ll set “1” by default)
     usageLimit = 1,
     startsAt = new Date().toISOString(),
     endsAt = null,
@@ -545,25 +538,9 @@ async function createBxgyFreeProductCode({
     }
   `;
 
-    // Variant GID (used for customerBuys)
-    const variantGid = `gid://shopify/ProductVariant/${String(variantIdNumeric)}`;
-
-    // We must give Shopify a PRODUCT id for productsToAdd.
-    // So first resolve ProductVariant -> Product id
-    const lookupQuery = `
-    query getVariantProduct($id: ID!) {
-      productVariant(id: $id) {
-        id
-        product { id }
-      }
-    }
-  `;
-    const lookupData = await shopifyGraphql(lookupQuery, { id: variantGid });
-    const productGid = lookupData?.productVariant?.product?.id;
-
-    if (!productGid) {
-        throw new Error("Could not resolve product id from variant id");
-    }
+    // IMPORTANT: BXGY customerGets.items expects PRODUCTS (not variants)
+    const productIdNumeric = await getProductIdFromVariantNumeric(variantIdNumeric);
+    const productGid = `gid://shopify/Product/${productIdNumeric}`;
 
     const input = {
         title,
@@ -573,35 +550,22 @@ async function createBxgyFreeProductCode({
         usageLimit: Number(usageLimit),
         customerSelection: { all: true },
 
-        // ✅ customerBuys: variant + quantity (MUST be string)
+        // Buy anything (minimum 1 item)
         customerBuys: {
-            items: {
-                products: {
-                    productVariantsToAdd: [variantGid],
-                },
-            },
-            value: {
-                quantity: String(quantity), // ✅ string required
-            },
+            items: { all: true },
+            value: { quantity: "1" }, // must be STRING
         },
 
-        // ✅ customerGets: productsToAdd + discountOnQuantity(effect)
+        // Get: discount on quantity -> 100% off up to N items from the target PRODUCT
         customerGets: {
-            items: {
-                products: {
-                    productsToAdd: [productGid],
-                },
-            },
+            items: { products: { add: [productGid] } },
             value: {
                 discountOnQuantity: {
-                    quantity: String(quantity), // ✅ REQUIRED (Shopify wants a string)
-                    effect: {
-                        percentage: 1.0, // ✅ 100% off (0..1)
-                    },
+                    effect: { percentage: 1.0 },            // free
+                    quantity: String(quantity || 1),        // must be STRING
                 },
             },
         },
-
 
         appliesOncePerCustomer: false,
     };
@@ -613,6 +577,16 @@ async function createBxgyFreeProductCode({
     return out.codeDiscountNode.id;
 }
 
+async function getProductIdFromVariantNumeric(variantIdNumeric) {
+    const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_ADMIN_VERSION}/variants/${variantIdNumeric}.json`;
+
+    const res = await shopifyHttp.get(url);
+    const v = res.data?.variant;
+    if (!v?.product_id) {
+        throw new Error("Could not resolve product id from variant id");
+    }
+    return String(v.product_id);
+}
 
 
 

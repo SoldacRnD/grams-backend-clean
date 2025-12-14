@@ -796,7 +796,7 @@ app.post("/api/perks/redeem", async (req, res) => {
         console.log("[redeem] gram loaded", { id: gram.id, perksCount: Array.isArray(gram.perks) ? gram.perks.length : 0 });
 
         const perks = Array.isArray(gram.perks) ? gram.perks : [];
-        const perk = perks.find((p) => p.id === perk_id);
+        const perk = [...perks].reverse().find(p => p.id === perk_id);
 
         if (!perk) {
             console.log("[redeem] perk not found on gram", perk_id);
@@ -885,6 +885,8 @@ app.post("/api/perks/redeem", async (req, res) => {
             });
 
             const shop = process.env.SHOP_DOMAIN || "https://www.soldacstudio.com";
+            checkoutUrl = `${shop}/discount/${encodeURIComponent(code)}?redirect=/cart/${variantId}:${qty}`;
+
 
             // ✅ FORCE add item to cart + apply code
             checkoutUrl = `${shop}/cart/${variantId}:${qty}?discount=${encodeURIComponent(code)}`;
@@ -918,7 +920,7 @@ app.post("/api/perks/redeem", async (req, res) => {
             ok: true,
             code,
             checkout_url: checkoutUrl,
-            redirect_url: checkoutUrl
+            redirect_url: checkoutUrl,
         });
 
 
