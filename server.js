@@ -751,6 +751,118 @@ app.post('/api/producer/grams', async (req, res) => {
     }
 });
 
+// Perks stay in shop and applied on the checkout in Shopify
+
+const crypto = require("crypto");
+const {
+    createBasicDiscountCode,
+    createBxgyFreeProductCode,
+} = require("./db/shopify");
+
+app.post("/api/perks/redeem", async (req, res) => {
+    try {
+        const { gram_id, perk_id, redeemer_fingerprint } = req.body;
+
+        if (!gram_id || !perk_id) {
+            return res.status(400).json({ ok: false, error: "Missing gram_id or perk_id" });
+        }
+
+        const fp =
+            redeemer_fingerprint ||
+            crypto.createHash("sha256").update(req.ip || "anon").digest("hex");
+
+        // load gram (and perks)
+        const { data: gram, error } = await supabase
+            .from("grams")
+            .select("*")
+            .eq("id", gram_id)
+            .single();
+
+        if (error || !gram) return res.status(404).json({ ok: false, error: "Gram not found" });
+
+        const perks = Array.isArray(gram.perks) ? gram.perks : [];
+        const perk = perks.find((p) => p.id === perk_id);
+        if (!perk) return res.status(404).json({ ok: false, error: "Perk not found on gram" });
+
+        const cooldown = Number(perk.cooldown_seconds || 0);
+
+        // cooldown check
+        const { data: last } = await supabase
+            .from("redemptions")
+            .select("redeemed_at")
+            .eq("gram_id", gram_id)
+            .eq("perk_id", perk_id)
+            .eq("redeemer_fingerprint", fp)
+            .order("redeemed_at", { ascending: false })
+            .limit(1);
+
+        if (last?.length) {
+            const lastTime = new Date(last[0].redeemed_at).getTime();
+            const now = Date.now();
+            if (cooldown > 0 && now - lastTime < cooldown * 1000) {
+                const remaining = Math.ceil((cooldown * 1000 - (now - lastTime)) / 1000);
+                return res.status(429).json({ ok: false, error: "COOLDOWN", remaining_seconds: remaining });
+            }
+        }
+
+        // generate a unique code
+        const code = `GRAM-${gram_id}-${perk_id}-${crypto.randomBytes(3).toString("hex")}`.toUpperCase();
+        const title = perk?.metadata?.title || `Gram perk ${gram_id} ${perk_id}`;
+
+        let discountNodeId = null;
+        let checkoutUrl = null;
+
+        // Create discount based on perk type
+        if (perk.type === "shopify_discount") {
+            const kind = perk.metadata?.kind || "percent";
+            const value = perk.metadata?.value;
+            if (value == null) return res.status(400).json({ ok: false, error: "Missing discount value" });
+
+            discountNodeId = await createBasicDiscountCode({
+                code,
+                title,
+                kind,
+                value,
+                usageLimit: perk.metadata?.usage_limit ?? 1,
+            });
+
+            // send them to cart with discount applied
+            checkoutUrl = `${process.env.SHOP_DOMAIN || "https://www.soldacstudio.com"}/cart?discount=${encodeURIComponent(code)}`;
+        }
+
+        if (perk.type === "shopify_free_product") {
+            const variantId = perk.metadata?.variant_id;
+            const qty = perk.metadata?.quantity ?? 1;
+            if (!variantId) return res.status(400).json({ ok: false, error: "Missing variant_id" });
+
+            discountNodeId = await createBxgyFreeProductCode({
+                code,
+                title,
+                variantIdNumeric: String(variantId),
+                quantity: Number(qty),
+                usageLimit: perk.metadata?.usage_limit ?? 1,
+            });
+
+            // add item to cart + apply discount code :contentReference[oaicite:4]{index=4}
+            const shop = process.env.SHOP_DOMAIN || "https://www.soldacstudio.com";
+            checkoutUrl = `${shop}/cart/${variantId}:${qty}?discount=${encodeURIComponent(code)}`;
+        }
+
+        // record redemption
+        await supabase.from("redemptions").insert({
+            gram_id,
+            perk_id,
+            redeemer_fingerprint: fp,
+            shopify_discount_code: code,
+            metadata: { discountNodeId, type: perk.type },
+        });
+
+        return res.json({ ok: true, code, checkout_url: checkoutUrl });
+    } catch (e) {
+        console.error("Perk redeem error:", e.response?.data || e.message || e);
+        return res.status(500).json({ ok: false, error: "Failed to redeem perk" });
+    }
+});
 
 
 // Get next Gram ID (e.g. G001 → G002) based on existing records in Supabase

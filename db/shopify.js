@@ -390,7 +390,36 @@ async function syncGramMetafieldsToShopify(gram) {
             key: "perks",
             type: "json",
             value: JSON.stringify(Array.isArray(gram.perks) ? gram.perks : [])
+        },
+        {
+            ownerId: `gid://shopify/Product/${gram.shopify_product_id}`,
+            namespace: "gram",
+            key: "series",
+            type: "single_line_text_field",
+            value: gram.series || "collection-1"
+        },
+        {
+            ownerId: `gid://shopify/Product/${gram.shopify_product_id}`,
+            namespace: "gram",
+            key: "rarity",
+            type: "single_line_text_field",
+            value: gram.rarity || "standard"
+        },
+        {
+            ownerId: `gid://shopify/Product/${gram.shopify_product_id}`,
+            namespace: "gram",
+            key: "glow",
+            type: "boolean",
+            value: Boolean(gram.effects?.glow)
+        },
+        {
+            ownerId: `gid://shopify/Product/${gram.shopify_product_id}`,
+            namespace: "gram",
+            key: "frame",
+            type: "single_line_text_field",
+            value: gram.effects?.frame || "none"
         }
+
     ];
 
     const res = await axios.post(
@@ -426,6 +455,119 @@ async function syncGramMetafieldsToShopify(gram) {
     return result.metafields || [];
 }
 
+async function shopifyGraphql(query, variables = {}) {
+    const res = await axios.post(
+        `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_ADMIN_VERSION}/graphql.json`,
+        { query, variables },
+        {
+            headers: {
+                "X-Shopify-Access-Token": SHOPIFY_ADMIN_TOKEN,
+                "Content-Type": "application/json",
+            },
+        }
+    );
+
+    if (res.data?.errors?.length) {
+        throw new Error("GraphQL errors: " + JSON.stringify(res.data.errors));
+    }
+    return res.data.data;
+}
+async function createBasicDiscountCode({
+    code,
+    title,
+    kind = "percent", // "percent" | "fixed"
+    value,
+    usageLimit = 1,
+    startsAt = new Date().toISOString(),
+    endsAt = null,
+}) {
+    const mutation = `
+    mutation discountCodeBasicCreate($basicCodeDiscount: DiscountCodeBasicInput!) {
+      discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
+        codeDiscountNode { id }
+        userErrors { field message }
+      }
+    }
+  `;
+
+    const customerGets =
+        kind === "percent"
+            ? { value: { percentage: Number(value) } }
+            : { value: { fixedAmount: { amount: String(value), appliesOnEachItem: false } } };
+
+    const input = {
+        title,
+        code,
+        startsAt,
+        ...(endsAt ? { endsAt } : {}),
+        usageLimit: Number(usageLimit),
+        customerSelection: { all: true },
+        customerGets: {
+            items: { all: true }, // entire order
+            value: customerGets.value,
+        },
+        customerBuys: {
+            items: { all: true },
+            value: { quantity: 1 },
+        },
+        appliesOncePerCustomer: false,
+    };
+
+    const data = await shopifyGraphql(mutation, { basicCodeDiscount: input });
+    const out = data.discountCodeBasicCreate;
+
+    if (out.userErrors?.length) throw new Error(JSON.stringify(out.userErrors));
+    return out.codeDiscountNode.id;
+}
+async function createBxgyFreeProductCode({
+    code,
+    title,
+    variantIdNumeric,
+    quantity = 1,
+    usageLimit = 1,
+    startsAt = new Date().toISOString(),
+    endsAt = null,
+}) {
+    const mutation = `
+    mutation discountCodeBxgyCreate($bxgyCodeDiscount: DiscountCodeBxgyInput!) {
+      discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyCodeDiscount) {
+        codeDiscountNode { id }
+        userErrors { field message }
+      }
+    }
+  `;
+
+    const variantGid = `gid://shopify/ProductVariant/${variantIdNumeric}`;
+
+    const input = {
+        title,
+        code,
+        startsAt,
+        ...(endsAt ? { endsAt } : {}),
+        usageLimit: Number(usageLimit),
+        customerSelection: { all: true },
+
+        customerBuys: {
+            items: { all: true }, // simplest: any purchase qualifies (you can tighten later)
+            value: { quantity: 1 },
+        },
+
+        customerGets: {
+            items: { products: { productVariantsToAdd: [variantGid] } },
+            value: { percentage: 100 },
+            quantity: Number(quantity),
+        },
+
+        appliesOncePerCustomer: false,
+    };
+
+    const data = await shopifyGraphql(mutation, { bxgyCodeDiscount: input });
+    const out = data.discountCodeBxgyCreate;
+
+    if (out.userErrors?.length) throw new Error(JSON.stringify(out.userErrors));
+    return out.codeDiscountNode.id;
+}
+
 
 
 // 👈 THIS IS CRUCIAL: export BOTH functions as properties
@@ -434,4 +576,6 @@ module.exports = {
     createProductForGram,
     updateProductForGram,
     syncGramMetafieldsToShopify,
+    createBasicDiscountCode,
+    createBxgyFreeProductCode,
 };

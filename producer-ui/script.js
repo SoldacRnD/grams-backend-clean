@@ -1260,6 +1260,55 @@ document.addEventListener('DOMContentLoaded', () => {
             if (type === "free_item" && itemStr) {
                 perk.metadata.item_name = itemStr;
             }
+            // NEW: Shopify shop perks
+            if (type === "shopify_discount") {
+                // reuse existing fields so you don't need new inputs yet:
+                // - perk-discount = discount value (e.g. 10)
+                // - perk-item = kind (e.g. "percent" or "fixed") OR leave blank for percent
+                const kind = (itemStr || "percent").toLowerCase(); // "percent" or "fixed"
+                const value = discountStr ? Number(discountStr) : null;
+
+                if (!value || isNaN(value)) {
+                    alert("For Shopify discount, enter a numeric value in Discount % field.");
+                    return;
+                }
+                if (!["percent", "fixed"].includes(kind)) {
+                    alert('For Shopify discount, type "percent" or "fixed" in the Item field (for now).');
+                    return;
+                }
+
+                perk.metadata.kind = kind;
+                perk.metadata.value = value;
+
+                // optional defaults (you can add proper inputs later)
+                perk.metadata.usage_limit = 1;
+                perk.metadata.title = `Gram perk: ${kind === "percent" ? value + "% off" : value + " off"}`;
+            }
+
+            if (type === "shopify_free_product") {
+                // reuse existing fields so you don't need new inputs yet:
+                // - perk-item = Shopify variant_id (numeric)
+                // - perk-discount = quantity (e.g. 1)
+                const variant_id = itemStr;
+                const quantity = discountStr ? Number(discountStr) : 1;
+
+                if (!variant_id || !/^\d+$/.test(variant_id)) {
+                    alert("For Shopify free product, put the numeric VARIANT ID in the Item field.");
+                    return;
+                }
+                if (!quantity || isNaN(quantity) || quantity < 1) {
+                    alert("For Shopify free product, put quantity (>=1) in Discount % field (for now).");
+                    return;
+                }
+
+                perk.metadata.variant_id = variant_id;
+                perk.metadata.quantity = quantity;
+
+                // optional defaults (you can add proper inputs later)
+                perk.metadata.usage_limit = 1;
+                perk.metadata.title = `Gram perk: Free product (variant ${variant_id})`;
+            }
+
 
             currentPerks.push(perk);
             renderPerks();
@@ -1271,6 +1320,30 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById("perk-item").value = "";
             document.getElementById("perk-cooldown").value = "";
         };
+    }
+    // Redeem in shop” button on the Gram page
+    async function redeemPerkInShop(gramId, perkId) {
+        const res = await fetch(`/api/perks/redeem`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                gram_id: gramId,
+                perk_id: perkId,
+                redeemer_fingerprint: localStorage.getItem("redeemer_fp") || null
+            })
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || !data.ok) {
+            alert(data.error === "COOLDOWN"
+                ? `Cooldown active. Try again in ${data.remaining_seconds}s`
+                : `Failed to redeem: ${data.error || res.status}`);
+            return;
+        }
+
+        // redirect to Shopify cart/checkout with discount applied
+        window.location.href = data.checkout_url;
     }
 
 
