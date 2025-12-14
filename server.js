@@ -857,11 +857,17 @@ app.post("/api/perks/redeem", async (req, res) => {
             metadata: { discountNodeId, type: perk.type },
         });
 
-        return res.json({ ok: true, code, checkout_url: checkoutUrl });
     } catch (e) {
-        console.error("Perk redeem error:", e.response?.data || e.message || e);
-        return res.status(500).json({ ok: false, error: "Failed to redeem perk" });
+        const details = e?.response?.data || e?.message || String(e);
+        console.error("Perk redeem error:", details);
+
+        return res.status(500).json({
+            ok: false,
+            error: "Failed to redeem perk",
+            details
+        });
     }
+
 });
 
 
