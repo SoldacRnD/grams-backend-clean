@@ -861,7 +861,9 @@ app.post("/api/perks/redeem", async (req, res) => {
             console.log("[redeem] BASIC discount created", { discountNodeId });
 
             // send them to cart with discount applied
-            checkoutUrl = `${process.env.SHOP_DOMAIN || "https://www.soldacstudio.com"}/cart?discount=${encodeURIComponent(code)}`;
+            const shop = process.env.SHOP_DOMAIN || "https://www.soldacstudio.com";
+            checkoutUrl = `${shop}/discount/${encodeURIComponent(code)}?redirect=/cart`;
+
         }
 
         if (perk.type === "shopify_free_product") {
@@ -886,7 +888,8 @@ app.post("/api/perks/redeem", async (req, res) => {
             console.log("[redeem] BXGY discount created", { discountNodeId });
 
             const shop = process.env.SHOP_DOMAIN || "https://www.soldacstudio.com";
-            checkoutUrl = `${shop}/cart/${variantId}:${qty}?discount=${encodeURIComponent(code)}`;
+            checkoutUrl = `${shop}/discount/${encodeURIComponent(code)}?redirect=/cart`;
+
         }
 
         if (!checkoutUrl) {
@@ -915,9 +918,9 @@ app.post("/api/perks/redeem", async (req, res) => {
         return res.json({
             ok: true,
             code,
-            checkout_url: checkoutUrl,
-            discountNodeId,
+            redirect_url: checkoutUrl
         });
+
 
     } catch (e) {
         const details = e?.response?.data || e?.message || String(e);
@@ -928,6 +931,7 @@ app.post("/api/perks/redeem", async (req, res) => {
             ok: false,
             error: "Failed to redeem perk",
             details
+
         });
     }
 });
