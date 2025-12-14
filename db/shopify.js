@@ -594,12 +594,14 @@ async function createBxgyFreeProductCode({
             },
             value: {
                 discountOnQuantity: {
+                    quantity: String(quantity), // ✅ REQUIRED (Shopify wants a string)
                     effect: {
-                        percentage: 1.0, // ✅ 100% off (Shopify expects 0..1)
+                        percentage: 1.0, // ✅ 100% off (0..1)
                     },
                 },
             },
         },
+
 
         appliesOncePerCustomer: false,
     };
