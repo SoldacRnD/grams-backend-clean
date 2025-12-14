@@ -763,7 +763,7 @@ app.post("/api/perks/redeem", async (req, res) => {
     const startedAt = Date.now();
 
     try {
-        const { gram_id, perk_id, redeemerKey } = req.body;
+        const { gram_id, perk_id, redeemer_fingerprint, redeemer_customer_id } = req.body;
 
         console.log("[redeem] START", { gram_id, perk_id });
 
@@ -773,9 +773,10 @@ app.post("/api/perks/redeem", async (req, res) => {
         }
 
         const redeemerKey =
-            req.body.redeemer_customer_id
-                ? `customer:${req.body.redeemer_customer_id}`
-                : crypto.createHash("sha256").update(req.ip || "anon").digest("hex");
+            redeemer_customer_id
+                ? `customer:${redeemer_customer_id}`
+                : (redeemer_fingerprint ||
+                    crypto.createHash("sha256").update(req.ip || "anon").digest("hex"));;
 
         console.log("[redeem] fingerprint", redeemerKey.slice(0, 8) + "...");
 
@@ -903,7 +904,7 @@ app.post("/api/perks/redeem", async (req, res) => {
         const { error: insErr } = await supabase.from("redemptions").insert({
             gram_id,
             perk_id,
-            redeemerKey: redeemerKey,
+            redeemer_fingerprint: redeemerKey,
             shopify_discount_code: code,
             metadata: { discountNodeId, type: perk.type },
         });
