@@ -524,7 +524,7 @@ async function createBxgyFreeProductCode({
     code,
     title,
     variantIdNumeric,
-    quantity = 1,      // how many free items max (we’ll set “1” by default)
+    quantity = 1,
     usageLimit = 1,
     startsAt = new Date().toISOString(),
     endsAt = null,
@@ -538,9 +538,7 @@ async function createBxgyFreeProductCode({
     }
   `;
 
-    // IMPORTANT: BXGY customerGets.items expects PRODUCTS (not variants)
-    const productIdNumeric = await getProductIdFromVariantNumeric(variantIdNumeric);
-    const productGid = `gid://shopify/Product/${productIdNumeric}`;
+    const variantGid = `gid://shopify/ProductVariant/${String(variantIdNumeric)}`;
 
     const input = {
         title,
@@ -550,19 +548,25 @@ async function createBxgyFreeProductCode({
         usageLimit: Number(usageLimit),
         customerSelection: { all: true },
 
-        // Buy anything (minimum 1 item)
+        // must be string in some schemas (UnsignedInt64)
         customerBuys: {
             items: { all: true },
-            value: { quantity: "1" }, // must be STRING
+            value: { quantity: "1" },
         },
 
-        // Get: discount on quantity -> 100% off up to N items from the target PRODUCT
         customerGets: {
-            items: { products: { add: [productGid] } },
+            // ✅ this is the key fix: DiscountProductsInput uses productVariantsToAdd/productsToAdd
+            items: {
+                products: {
+                    productVariantsToAdd: [variantGid],
+                },
+            },
+
+            // ✅ free item via discountOnQuantity
             value: {
                 discountOnQuantity: {
-                    effect: { percentage: 1.0 },            // free
-                    quantity: String(quantity || 1),        // must be STRING
+                    quantity: String(quantity), // must be string
+                    effect: { percentage: 1.0 }, // 1.0 = 100% off
                 },
             },
         },
@@ -576,6 +580,7 @@ async function createBxgyFreeProductCode({
     if (out.userErrors?.length) throw new Error(JSON.stringify(out.userErrors));
     return out.codeDiscountNode.id;
 }
+
 
 async function getProductIdFromVariantNumeric(variantIdNumeric) {
     const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_ADMIN_VERSION}/variants/${variantIdNumeric}.json`;
