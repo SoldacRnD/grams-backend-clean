@@ -756,7 +756,7 @@ app.post('/api/producer/grams', async (req, res) => {
 const crypto = require("crypto");
 const {
     createBasicDiscountCode,
-    createFreeVariant100DiscountCode,
+    createFreeProduct100DiscountCode,
 } = require("./db/shopify");
 
 app.post("/api/perks/redeem", async (req, res) => {
@@ -876,7 +876,7 @@ app.post("/api/perks/redeem", async (req, res) => {
                 return res.status(400).json({ ok: false, error: "Missing variant_id" });
             }
 
-            discountNodeId = await createFreeVariant100DiscountCode({
+            discountNodeId = await createFreeProduct100DiscountCode({
                 code,
                 title,
                 variantIdNumeric: String(variantId),
