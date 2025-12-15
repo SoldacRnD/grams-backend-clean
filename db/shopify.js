@@ -520,15 +520,36 @@ async function createBasicDiscountCode({
     return out.codeDiscountNode.id;
 }
 
-async function createFreeVariant100DiscountCode({
+async function getProductIdFromVariantId(variantIdNumeric) {
+    const query = `
+    query($id: ID!) {
+      productVariant(id: $id) {
+        id
+        product { id }
+      }
+    }
+  `;
+
+    const variantGid = `gid://shopify/ProductVariant/${String(variantIdNumeric)}`;
+    const data = await shopifyGraphql(query, { id: variantGid });
+
+    const productId = data?.productVariant?.product?.id;
+    if (!productId) throw new Error("Could not resolve product id from variant id");
+
+    return productId; // gid://shopify/Product/...
+}
+
+async function createFreeProduct100DiscountCode({
     code,
     title,
-    variantIdNumeric,   // numeric variant id e.g. "57057859240317"
+    variantIdNumeric,
     usageLimit = 1,
     startsAt = new Date().toISOString(),
     endsAt = null,
     appliesOncePerCustomer = false,
 }) {
+    const productGid = await getProductIdFromVariantId(variantIdNumeric);
+
     const mutation = `
     mutation discountCodeBasicCreate($basicCodeDiscount: DiscountCodeBasicInput!) {
       discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
@@ -538,8 +559,6 @@ async function createFreeVariant100DiscountCode({
     }
   `;
 
-    const variantGid = `gid://shopify/ProductVariant/${String(variantIdNumeric)}`;
-
     const input = {
         title,
         code,
@@ -548,10 +567,11 @@ async function createFreeVariant100DiscountCode({
         usageLimit: Number(usageLimit),
         customerSelection: { all: true },
 
-        // ✅ apply discount ONLY to this variant
         customerGets: {
-            items: { productVariants: { productVariantsToAdd: [variantGid] } },
-            value: { percentage: 1.0 }, // ✅ 1.0 = 100%
+            // ✅ product-targeted (NOT variant-targeted)
+            items: { products: { productsToAdd: [productGid] } },
+            // ✅ percent is 0..1, so 100% = 1.0
+            value: { percentage: 1.0 },
         },
 
         appliesOncePerCustomer: !!appliesOncePerCustomer,
@@ -564,18 +584,6 @@ async function createFreeVariant100DiscountCode({
     return out.codeDiscountNode.id;
 }
 
-
-
-async function getProductIdFromVariantNumeric(variantIdNumeric) {
-    const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_ADMIN_VERSION}/variants/${variantIdNumeric}.json`;
-
-    const res = await shopifyHttp.get(url);
-    const v = res.data?.variant;
-    if (!v?.product_id) {
-        throw new Error("Could not resolve product id from variant id");
-    }
-    return String(v.product_id);
-}
 
 
 
