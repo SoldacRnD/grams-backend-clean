@@ -594,5 +594,5 @@ module.exports = {
     updateProductForGram,
     syncGramMetafieldsToShopify,
     createBasicDiscountCode,
-    createFreeVariant100DiscountCode,
+    createFreeProduct100DiscountCode,
 };
