@@ -10,9 +10,15 @@ const newId = require('./utils/id');
 const PORT = process.env.PORT || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 const app = express();
-const { listProducts, createProductForGram, updateProductForGram, syncGramMetafieldsToShopify } = require('./db/shopify');
+const {
+    listProducts,
+    createProductForGram,
+    updateProductForGram,
+    syncGramMetafieldsToShopify,
+    createBasicDiscountCode,
+    createFreeProduct100DiscountCode,
+} = require("./db/shopify");
 const crypto = require("crypto");
-
 const VENDOR_SECRET_SALT = process.env.VENDOR_SECRET_SALT || "CHANGE_ME";
 const ADMIN_KEY = process.env.ADMIN_KEY || "";
 const SOLDAC_BUSINESS_ID = process.env.SOLDAC_BUSINESS_ID || "SOLDAC";
@@ -67,6 +73,22 @@ async function requireVendor(req, res, next) {
         console.error("Vendor auth error:", err);
         return res.status(500).json({ ok: false, error: "VENDOR_AUTH_ERROR" });
     }
+}
+function requireAdmin(req, res, next) {
+    const key = (req.headers["x-admin-key"] || "").toString().trim();
+
+    if (!ADMIN_KEY) {
+        return res.status(500).json({ ok: false, error: "ADMIN_KEY_NOT_SET" });
+    }
+    if (!key || key !== ADMIN_KEY) {
+        return res.status(401).json({ ok: false, error: "UNAUTHORIZED" });
+    }
+    next();
+}
+
+function makeVendorSecret() {
+    // 24 bytes -> 48 hex chars
+    return crypto.randomBytes(24).toString("hex").toUpperCase();
 }
 
 
@@ -833,11 +855,6 @@ app.post('/api/producer/grams', async (req, res) => {
 });
 
 // Perks stay in shop and applied on the checkout in Shopify
-
-const {
-    createBasicDiscountCode,
-    createFreeProduct100DiscountCode,
-} = require("./db/shopify");
 
 app.post("/api/perks/redeem", async (req, res) => {
     const startedAt = Date.now();
@@ -1699,56 +1716,56 @@ app.post('/internal/notion/checkpoints', async (req, res) => {
 // Producer-only: Create vendor (stores hash, returns plaintext secret once)
 // -----------------------------------------------------------------------------
 app.post("/api/producer/vendors", requireAdmin, async (req, res) => {
-    try {
-        const business_id = String(req.body?.business_id || "").trim();
-        const business_name = String(req.body?.business_name || "").trim() || null;
+  try {
+    const business_id = String(req.body?.business_id || "").trim();
+    const business_name = String(req.body?.business_name || "").trim() || null;
 
-        const address = String(req.body?.address || "").trim() || null;
-        const maps_url = String(req.body?.maps_url || "").trim() || null;
-        const lat = req.body?.lat != null ? Number(req.body.lat) : null;
-        const lng = req.body?.lng != null ? Number(req.body.lng) : null;
+    const address = String(req.body?.address || "").trim() || null;
+    const maps_url = String(req.body?.maps_url || "").trim() || null;
+    const lat = req.body?.lat != null ? Number(req.body.lat) : null;
+    const lng = req.body?.lng != null ? Number(req.body.lng) : null;
 
-        if (!business_id) return res.status(400).json({ ok: false, error: "MISSING_BUSINESS_ID" });
+    if (!business_id) return res.status(400).json({ ok: false, error: "MISSING_BUSINESS_ID" });
 
-        const vendor_secret = makeVendorSecret();
-        const secret_hash = hashVendorSecret(vendor_secret);
+    const vendor_secret = makeVendorSecret();
+    const secret_hash = hashVendorSecret(vendor_secret);
 
-        const row = {
-            business_id,
-            business_name,
-            secret_hash,
-            address,
-            maps_url,
-            lat: isNaN(lat) ? null : lat,
-            lng: isNaN(lng) ? null : lng,
-            updated_at: new Date().toISOString(),
-        };
+    const row = {
+      business_id,
+      business_name,
+      secret_hash,
+      address,
+      maps_url,
+      lat: isNaN(lat) ? null : lat,
+      lng: isNaN(lng) ? null : lng,
+      updated_at: new Date().toISOString(),
+    };
 
-        const { data: created, error } = await supabase
-            .from("vendors")
-            .insert(row)
-            .select("business_id,business_name,address,maps_url,lat,lng,created_at,updated_at")
-            .single();
+    const { data: created, error } = await supabase
+      .from("vendors")
+      .insert(row)
+      .select("business_id,business_name,address,maps_url,lat,lng,created_at,updated_at")
+      .single();
 
-        if (error) {
-            // handle duplicate business_id cleanly
-            if (String(error.message || "").toLowerCase().includes("duplicate")) {
-                return res.status(409).json({ ok: false, error: "VENDOR_ALREADY_EXISTS" });
-            }
-            throw error;
-        }
-
-        // IMPORTANT: return plaintext secret ONLY ONCE
-        return res.json({
-            ok: true,
-            vendor: created,
-            vendor_secret, // copy and give to the vendor
-            note: "Save this vendor_secret now. It cannot be recovered later (only reset).",
-        });
-    } catch (err) {
-        console.error("Create vendor error:", err);
-        return res.status(500).json({ ok: false, error: "CREATE_VENDOR_ERROR" });
+    if (error) {
+      // handle duplicate business_id cleanly
+      if (String(error.message || "").toLowerCase().includes("duplicate")) {
+        return res.status(409).json({ ok: false, error: "VENDOR_ALREADY_EXISTS" });
+      }
+      throw error;
     }
+
+    // IMPORTANT: return plaintext secret ONLY ONCE
+    return res.json({
+      ok: true,
+      vendor: created,
+      vendor_secret, // copy and give to the vendor
+      note: "Save this vendor_secret now. It cannot be recovered later (only reset).",
+    });
+  } catch (err) {
+    console.error("Create vendor error:", err);
+    return res.status(500).json({ ok: false, error: "CREATE_VENDOR_ERROR" });
+  }
 });
 
 
