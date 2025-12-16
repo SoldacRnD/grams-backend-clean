@@ -1352,6 +1352,8 @@ app.put("/api/vendor/perks/:id", requireVendor, async (req, res) => {
         return res.status(400).json({ ok: false, error: err.message || "VENDOR_PERK_UPDATE_ERROR" });
     }
 });
+assertVendorAllowedPerkType(businessId, merged.type);
+
 
 // DELETE /api/vendor/perks/:id
 // body: { business_id }
