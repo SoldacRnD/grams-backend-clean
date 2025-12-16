@@ -18,6 +18,8 @@
     const createCooldownEl = document.getElementById("createCooldown");
     const createFieldsEl = document.getElementById("createFields");
     const createBtn = document.getElementById("createPerk");
+    const createPerkCardEl = document.getElementById("createPerkCard");
+
 
 
   // Same-origin by default (works on Render + local)
@@ -46,6 +48,7 @@
 
         localStorage.setItem("vendor_business_id", bid);
         localStorage.setItem("vendor_secret", sec);
+        applyTypeLock(); // 👈 ADD THIS
 
         setStatus("Business ID + Vendor Key saved.");
     };
@@ -88,10 +91,81 @@
         try { data = text ? JSON.parse(text) : {}; } catch (_) { }
         return { ok: res.ok, status: res.status, data, raw: text };
     }
+    function applyTypeLock() {
+        const bid = (businessIdEl.value || localStorage.getItem("vendor_business_id") || "").trim();
+        const isSoldac = bid === "SOLDAC"; // must match your SOLDAC_BUSINESS_ID
+
+        // remove shopify_* options for non-Soldac
+        Array.from(createTypeEl.options).forEach(opt => {
+            const v = (opt.value || "").trim();
+            if (v.startsWith("shopify_")) opt.disabled = !isSoldac;
+        });
+
+        // if currently selected is not allowed, switch to first allowed
+        const cur = (createTypeEl.value || "").trim();
+        if (!isSoldac && cur.startsWith("shopify_")) {
+            const firstAllowed = Array.from(createTypeEl.options).find(o => !String(o.value).startsWith("shopify_"));
+            if (firstAllowed) createTypeEl.value = firstAllowed.value;
+        }
+
+        renderCreateFields();
+    }
 
     function renderCreateFields() {
         const t = (createTypeEl.value || "").trim();
 
+        // Partner in-person discount
+        if (t === "discount") {
+            createFieldsEl.innerHTML = `
+      <div class="grid">
+        <div>
+          <label class="label">Discount %</label>
+          <input id="metaDiscountPercent" class="input" type="number" placeholder="10" />
+        </div>
+        <div>
+          <label class="label">Title (optional)</label>
+          <input id="metaTitle" class="input" placeholder="10% off" />
+        </div>
+      </div>
+    `;
+            return;
+        }
+
+        // Partner in-person free item
+        if (t === "free_item") {
+            createFieldsEl.innerHTML = `
+      <div class="grid">
+        <div>
+          <label class="label">Item name</label>
+          <input id="metaItemName" class="input" placeholder="beer" />
+        </div>
+        <div>
+          <label class="label">Title (optional)</label>
+          <input id="metaTitle" class="input" placeholder="Free beer" />
+        </div>
+      </div>
+    `;
+            return;
+        }
+
+        // Partner access
+        if (t === "access") {
+            createFieldsEl.innerHTML = `
+      <div class="grid">
+        <div>
+          <label class="label">Access label</label>
+          <input id="metaAccessLabel" class="input" placeholder="VIP entry" />
+        </div>
+        <div>
+          <label class="label">Title (optional)</label>
+          <input id="metaTitle" class="input" placeholder="VIP access" />
+        </div>
+      </div>
+    `;
+            return;
+        }
+
+        // Soldac-only Shopify discount
         if (t === "shopify_discount") {
             createFieldsEl.innerHTML = `
       <div class="grid">
@@ -119,6 +193,7 @@
             return;
         }
 
+        // Soldac-only Shopify free product
         if (t === "shopify_free_product") {
             createFieldsEl.innerHTML = `
       <div class="grid">
@@ -146,6 +221,7 @@
         createFieldsEl.innerHTML = "";
     }
 
+
     createTypeEl.onchange = renderCreateFields;
     renderCreateFields();
 
@@ -161,6 +237,27 @@
         const business_name = (createBusinessNameEl.value || "").trim() || null;
 
         let metadata = {};
+        if(type === "discount") {
+            const discount_percent = Number(document.getElementById("metaDiscountPercent")?.value || 0);
+            const title = (document.getElementById("metaTitle")?.value || "").trim();
+            metadata = { discount_percent };
+            if (title) metadata.title = title;
+        }
+
+        if (type === "free_item") {
+            const item_name = (document.getElementById("metaItemName")?.value || "").trim();
+            const title = (document.getElementById("metaTitle")?.value || "").trim();
+            metadata = { item_name };
+            if (title) metadata.title = title;
+        }
+
+        if (type === "access") {
+            const access_label = (document.getElementById("metaAccessLabel")?.value || "").trim();
+            const title = (document.getElementById("metaTitle")?.value || "").trim();
+            metadata = { access_label };
+            if (title) metadata.title = title;
+        }
+
         if (type === "shopify_discount") {
             const kind = (document.getElementById("metaKind")?.value || "percent").trim();
             const value = document.getElementById("metaValue")?.value;
@@ -225,6 +322,38 @@
     if (p.type === "discount") return p.metadata?.discount_percent ? `${p.metadata.discount_percent}% off` : "(discount)";
     return p.metadata ? pretty(p.metadata).slice(0, 140) : "";
   }
+    function applyTypeLock() {
+        const bid = (businessIdEl.value || localStorage.getItem("vendor_business_id") || "").trim();
+        const isSoldac = bid === "SOLDAC"; // must match SOLDAC_BUSINESS_ID
+
+        // Hide entire Create Perk card for non-Soldac
+        if (createPerkCardEl) {
+            createPerkCardEl.style.display = isSoldac ? "" : "none";
+        }
+
+        // Restrict the Type dropdown
+        const allowedForPartners = new Set(["discount", "free_item", "access"]);
+        Array.from(createTypeEl.options).forEach(opt => {
+            const v = String(opt.value || "");
+            if (isSoldac) {
+                opt.disabled = false;
+                opt.hidden = false;
+            } else {
+                const allowed = allowedForPartners.has(v);
+                opt.disabled = !allowed;
+                opt.hidden = !allowed;
+            }
+        });
+
+        // If current selection becomes invalid, switch
+        const cur = String(createTypeEl.value || "");
+        if (!isSoldac && !allowedForPartners.has(cur)) {
+            const firstAllowed = Array.from(createTypeEl.options).find(o => !o.disabled && !o.hidden);
+            if (firstAllowed) createTypeEl.value = firstAllowed.value;
+        }
+
+        renderCreateFields();
+    }
 
   function render(perks) {
     if (!perks.length) {
@@ -369,5 +498,6 @@
   loadBtn.onclick = loadPerks;
   refreshBtn.onclick = loadPerks;
 
-  loadSaved();
+    loadSaved();
+    applyTypeLock(); //
 })();

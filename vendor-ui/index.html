@@ -15,23 +15,34 @@
       </div>
 
       <div class="auth">
-        <label class="label">Business ID</label>
-        <div class="row">
-          <input id="businessId" class="input" placeholder="e.g. Bar11" />
-          <button id="saveBusinessId" class="btn">Save</button>
-        </div>
-        <div class="row">
-          <input id="gramId" class="input" placeholder="Optional: filter by gram_id (e.g. G002)" />
-          <button id="loadPerks" class="btn primary">Load perks</button>
-        </div>
-        <p id="status" class="status muted"></p>
+          <label class="label">Business ID</label>
+          <div class="row">
+              <input id="businessId" class="input" placeholder="e.g. Bar11" />
+              <button id="saveBusinessId" class="btn">Save</button>
+              <label class="label">Vendor Key</label>
+              <div class="row">
+                  <input id="vendorSecret" class="input" placeholder="••••••••" />
+                  <button id="saveBusinessId" class="btn">Save</button>
+              </div>
+
+          </div>
+          <label class="label">Vendor Key</label>
+          <div class="row">
+              <input id="vendorSecret" class="input" placeholder="••••••••" />
+              <button id="saveBusinessId" class="btn">Save</button>
+          </div>
+          <div class="row">
+              <input id="gramId" class="input" placeholder="Optional: filter by gram_id (e.g. G002)" />
+              <button id="loadPerks" class="btn primary">Load perks</button>
+          </div>
+          <p id="status" class="status muted"></p>
       </div>
     </header>
 
     <main>
         <a class="btn primary" href="/vendor/validate.html">Validate a Gram</a>
 
-        <div class="card">
+        <div class="card" id="createPerkCard">
             <div class="card-head">
                 <h2>Create perk</h2>
             </div>
@@ -51,9 +62,14 @@
                     <div>
                         <label class="label">Type</label>
                         <select id="createType" class="input">
+                            <option value="discount">discount</option>
+                            <option value="free_item">free_item</option>
+                            <option value="access">access</option>
+
                             <option value="shopify_discount">shopify_discount</option>
                             <option value="shopify_free_product">shopify_free_product</option>
                         </select>
+
                     </div>
 
                     <div>
