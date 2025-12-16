@@ -91,25 +91,6 @@
         try { data = text ? JSON.parse(text) : {}; } catch (_) { }
         return { ok: res.ok, status: res.status, data, raw: text };
     }
-    function applyTypeLock() {
-        const bid = (businessIdEl.value || localStorage.getItem("vendor_business_id") || "").trim();
-        const isSoldac = bid === "SOLDAC"; // must match your SOLDAC_BUSINESS_ID
-
-        // remove shopify_* options for non-Soldac
-        Array.from(createTypeEl.options).forEach(opt => {
-            const v = (opt.value || "").trim();
-            if (v.startsWith("shopify_")) opt.disabled = !isSoldac;
-        });
-
-        // if currently selected is not allowed, switch to first allowed
-        const cur = (createTypeEl.value || "").trim();
-        if (!isSoldac && cur.startsWith("shopify_")) {
-            const firstAllowed = Array.from(createTypeEl.options).find(o => !String(o.value).startsWith("shopify_"));
-            if (firstAllowed) createTypeEl.value = firstAllowed.value;
-        }
-
-        renderCreateFields();
-    }
 
     function renderCreateFields() {
         const t = (createTypeEl.value || "").trim();
@@ -406,24 +387,7 @@
           const perk = perks.find(x => String(x.id) === String(id));
           debugEl.textContent = pretty(perk || {});
           return;
-        }
-
-          if (action === "delete") {
-              if (!confirm("Delete this perk?")) return;
-              setStatus("Deleting…");
-              const out = await apiPost(`${API_BASE}/api/vendor/perks/${encodeURIComponent(id)}`, {});
-              const raw = await out.text();
-              debugEl.textContent = `HTTP ${out.status}\n` + raw;
-              let data = {};
-              try { data = raw ? JSON.parse(raw) : {}; } catch (_) { }
-              if (!out.ok || !data.ok) {
-                  alert(`Failed: ${data.error || "UNKNOWN"}`);
-                  return;
-              }
-              await loadPerks();
-              return;
           }
-
           if (action === "edit") {
               const perk = perks.find(x => String(x.id) === String(id));
               if (!perk) return;
@@ -431,31 +395,65 @@
               const newCooldown = prompt("Cooldown seconds:", String(perk.cooldown_seconds ?? 0));
               if (newCooldown === null) return;
 
-              // Minimal edit: cooldown + enabled stays as is (safe). We can expand later.
               setStatus("Updating…");
-              const out = await apiPost(`${API_BASE}/api/vendor/perks/${encodeURIComponent(id)}`, {
-                  cooldown_seconds: Number(newCooldown),
-              });
 
+              const out = await fetch(`${API_BASE}/api/vendor/perks/${encodeURIComponent(id)}`, {
+                  method: "PUT",
+                  headers: {
+                      "Content-Type": "application/json",
+                      "X-Business-Id": (businessIdEl.value || localStorage.getItem("vendor_business_id") || "").trim(),
+                      "X-Vendor-Secret": (vendorSecretEl?.value || localStorage.getItem("vendor_secret") || "").trim(),
+                  },
+                  body: JSON.stringify({ cooldown_seconds: Number(newCooldown) })
+              });
 
               const raw = await out.text();
               debugEl.textContent = `HTTP ${out.status}\n` + raw;
+
               let data = {};
               try { data = raw ? JSON.parse(raw) : {}; } catch (_) { }
+
               if (!out.ok || !data.ok) {
                   alert(`Failed: ${data.error || "UNKNOWN"}`);
                   return;
               }
+
+              await loadPerks();
+              return;
+          }
+
+
+          if (action === "delete") {
+              if (!confirm("Delete this perk?")) return;
+              setStatus("Deleting…");
+
+              const out = await fetch(`${API_BASE}/api/vendor/perks/${encodeURIComponent(id)}`, {
+                  method: "DELETE",
+                  headers: {
+                      "X-Business-Id": (businessIdEl.value || localStorage.getItem("vendor_business_id") || "").trim(),
+                      "X-Vendor-Secret": (vendorSecretEl?.value || localStorage.getItem("vendor_secret") || "").trim(),
+                  }
+              });
+
+              const raw = await out.text();
+              debugEl.textContent = `HTTP ${out.status}\n` + raw;
+
+              let data = {};
+              try { data = raw ? JSON.parse(raw) : {}; } catch (_) { }
+
+              if (!out.ok || !data.ok) {
+                  alert(`Failed: ${data.error || "UNKNOWN"}`);
+                  return;
+              }
+
               await loadPerks();
               return;
           }
 
         setStatus(`${action}...`);
-          const url =
-              `${API_BASE}/api/vendor/perks`
-              + (gram_id ? `?gram_id=${encodeURIComponent(gram_id)}` : "");
+          const url = `${API_BASE}/api/vendor/perks/${encodeURIComponent(id)}/${action}`;
+          const out = await apiPost(url, {});
 
-        const out = await apiPost(url, {});
 
 
         debugEl.textContent = `HTTP ${out.status}\n` + (out.raw || "");
@@ -476,10 +474,6 @@
     const gram_id = (gramIdEl.value || "").trim();
 
     if (!business_id) return alert("Business ID required");
-
-    const url =
-      `${API_BASE}/api/vendor/perks?business_id=${encodeURIComponent(business_id)}`
-      + (gram_id ? `&gram_id=${encodeURIComponent(gram_id)}` : "");
 
     setStatus("Loading perks…");
     const out = await apiGet(url);
