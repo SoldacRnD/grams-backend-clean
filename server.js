@@ -29,6 +29,10 @@ const db = new SupabaseDB();
 // Serve producer web UI
 app.use('/producer', express.static(path.join(__dirname, 'producer-ui')));
 
+// Serve vendor web UI
+app.use('/vendor', express.static(path.join(__dirname, 'vendor-ui')));
+
+
 // -----------------------------------------------------------------------------
 // List grams by owner (used by "My Grams" page)
 // -----------------------------------------------------------------------------

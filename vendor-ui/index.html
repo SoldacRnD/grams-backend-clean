@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Vendor — Perks Manager</title>
+  <link rel="stylesheet" href="./vendor.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <h1>Vendor Perks</h1>
+        <p class="muted">Manage your perks (enable/disable) and keep grams snapshot updated.</p>
+      </div>
+
+      <div class="auth">
+        <label class="label">Business ID</label>
+        <div class="row">
+          <input id="businessId" class="input" placeholder="e.g. Bar11" />
+          <button id="saveBusinessId" class="btn">Save</button>
+        </div>
+        <div class="row">
+          <input id="gramId" class="input" placeholder="Optional: filter by gram_id (e.g. G002)" />
+          <button id="loadPerks" class="btn primary">Load perks</button>
+        </div>
+        <p id="status" class="status muted"></p>
+      </div>
+    </header>
+
+    <main>
+      <div class="card">
+        <div class="card-head">
+          <h2>Perks</h2>
+          <div class="right">
+            <button id="refresh" class="btn">Refresh</button>
+          </div>
+        </div>
+
+        <div id="tableWrap" class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Gram</th>
+                <th>Partner</th>
+                <th>Type</th>
+                <th>Details</th>
+                <th>Cooldown</th>
+                <th>Status</th>
+                <th style="width:170px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="perksTbody">
+              <tr><td colspan="7" class="muted">Load perks to begin…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Debug</h2>
+        </div>
+        <pre id="debug" class="pre muted">—</pre>
+      </div>
+    </main>
+  </div>
+
+  <script src="./vendor.js"></script>
+</body>
+</html>
