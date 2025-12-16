@@ -1768,6 +1768,19 @@ app.post("/api/producer/vendors", requireAdmin, async (req, res) => {
   }
 });
 
+//temp test
+app.get('/_debug/vendor-files', (req, res) => {
+    const fs = require('fs');
+    const p = require('path');
+    const dir = p.join(__dirname, 'vendor-ui');
+    try {
+        const files = fs.readdirSync(dir);
+        return res.json({ ok: true, dir, files });
+    } catch (e) {
+        return res.status(500).json({ ok: false, dir, error: String(e) });
+    }
+});
+
 
 // -----------------------------------------------------------------------------
 // Start server
