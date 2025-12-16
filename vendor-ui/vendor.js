@@ -10,6 +10,14 @@
   const tbody = $("perksTbody");
   const debugEl = $("debug");
 
+    const createGramIdEl = document.getElementById("createGramId");
+    const createBusinessNameEl = document.getElementById("createBusinessName");
+    const createTypeEl = document.getElementById("createType");
+    const createCooldownEl = document.getElementById("createCooldown");
+    const createFieldsEl = document.getElementById("createFields");
+    const createBtn = document.getElementById("createPerk");
+
+
   // Same-origin by default (works on Render + local)
   const API_BASE = "";
 
@@ -52,6 +60,122 @@
     try { data = text ? JSON.parse(text) : {}; } catch (_) {}
     return { ok: res.ok, status: res.status, data, raw: text };
   }
+    function renderCreateFields() {
+        const t = (createTypeEl.value || "").trim();
+
+        if (t === "shopify_discount") {
+            createFieldsEl.innerHTML = `
+      <div class="grid">
+        <div>
+          <label class="label">Discount kind</label>
+          <select id="metaKind" class="input">
+            <option value="percent">percent</option>
+            <option value="fixed">fixed</option>
+          </select>
+        </div>
+        <div>
+          <label class="label">Value</label>
+          <input id="metaValue" class="input" type="number" placeholder="20" />
+        </div>
+        <div>
+          <label class="label">Title (optional)</label>
+          <input id="metaTitle" class="input" placeholder="Gram perk: 20% off" />
+        </div>
+        <div>
+          <label class="label">Usage limit (optional)</label>
+          <input id="metaUsage" class="input" type="number" placeholder="1" />
+        </div>
+      </div>
+    `;
+            return;
+        }
+
+        if (t === "shopify_free_product") {
+            createFieldsEl.innerHTML = `
+      <div class="grid">
+        <div>
+          <label class="label">Variant ID (numeric)</label>
+          <input id="metaVariant" class="input" placeholder="56940868895101" />
+        </div>
+        <div>
+          <label class="label">Quantity</label>
+          <input id="metaQty" class="input" type="number" placeholder="1" />
+        </div>
+        <div>
+          <label class="label">Title (optional)</label>
+          <input id="metaTitle" class="input" placeholder="Free item" />
+        </div>
+        <div>
+          <label class="label">Usage limit (optional)</label>
+          <input id="metaUsage" class="input" type="number" placeholder="1" />
+        </div>
+      </div>
+    `;
+            return;
+        }
+
+        createFieldsEl.innerHTML = "";
+    }
+
+    createTypeEl.onchange = renderCreateFields;
+    renderCreateFields();
+
+    createBtn.onclick = async () => {
+        const business_id = (businessIdEl.value || localStorage.getItem("vendor_business_id") || "").trim();
+        if (!business_id) return alert("Business ID required");
+
+        const gram_id = (createGramIdEl.value || "").trim();
+        if (!gram_id) return alert("Gram ID required");
+
+        const type = (createTypeEl.value || "").trim();
+        const cooldown_seconds = Number(createCooldownEl.value || 0);
+        const business_name = (createBusinessNameEl.value || "").trim() || null;
+
+        let metadata = {};
+        if (type === "shopify_discount") {
+            const kind = (document.getElementById("metaKind")?.value || "percent").trim();
+            const value = document.getElementById("metaValue")?.value;
+            const title = (document.getElementById("metaTitle")?.value || "").trim();
+            const usage = document.getElementById("metaUsage")?.value;
+
+            metadata = { kind, value: value == null ? null : Number(value) };
+            if (title) metadata.title = title;
+            if (usage) metadata.usage_limit = Number(usage);
+        }
+
+        if (type === "shopify_free_product") {
+            const variant_id = (document.getElementById("metaVariant")?.value || "").trim();
+            const quantity = Number(document.getElementById("metaQty")?.value || 1);
+            const title = (document.getElementById("metaTitle")?.value || "").trim();
+            const usage = document.getElementById("metaUsage")?.value;
+
+            metadata = { variant_id, quantity };
+            if (title) metadata.title = title;
+            if (usage) metadata.usage_limit = Number(usage);
+        }
+
+        setStatus("Creating perk…");
+        const out = await apiPost(`${API_BASE}/api/vendor/perks`, {
+            business_id,
+            gram_id,
+            business_name,
+            type,
+            cooldown_seconds,
+            enabled: true,
+            metadata,
+        });
+
+        debugEl.textContent = `HTTP ${out.status}\n` + (out.raw || "");
+        if (!out.ok || !out.data?.ok) {
+            setStatus(`Failed: ${out.data?.error || "UNKNOWN"}`);
+            alert(`Failed: ${out.data?.error || "UNKNOWN"}`);
+            return;
+        }
+
+        setStatus("Perk created. Refreshing…");
+        await loadPerks();
+    };
+
 
   function perkDetails(p) {
     // Friendly view based on your live perk shapes
@@ -98,12 +222,15 @@
           <td>${pill}</td>
           <td>
             <div class="actions">
-              ${enabled
-                ? `<button class="btn small" data-action="disable" data-id="${p.id}">Disable</button>`
-                : `<button class="btn small primary" data-action="enable" data-id="${p.id}">Enable</button>`
-              }
-              <button class="btn small" data-action="inspect" data-id="${p.id}">Inspect</button>
-            </div>
+  ${enabled
+              ? `<button class="btn small" data-action="disable" data-id="${p.id}">Disable</button>`
+              : `<button class="btn small primary" data-action="enable" data-id="${p.id}">Enable</button>`
+          }
+  <button class="btn small" data-action="edit" data-id="${p.id}">Edit</button>
+  <button class="btn small" data-action="delete" data-id="${p.id}">Delete</button>
+  <button class="btn small" data-action="inspect" data-id="${p.id}">Inspect</button>
+</div>
+
           </td>
         </tr>
       `;
@@ -122,6 +249,57 @@
           debugEl.textContent = pretty(perk || {});
           return;
         }
+
+          if (action === "delete") {
+              if (!confirm("Delete this perk?")) return;
+              setStatus("Deleting…");
+              const out = await fetch(`${API_BASE}/api/vendor/perks/${encodeURIComponent(id)}`, {
+                  method: "DELETE",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ business_id })
+              });
+              const raw = await out.text();
+              debugEl.textContent = `HTTP ${out.status}\n` + raw;
+              let data = {};
+              try { data = raw ? JSON.parse(raw) : {}; } catch (_) { }
+              if (!out.ok || !data.ok) {
+                  alert(`Failed: ${data.error || "UNKNOWN"}`);
+                  return;
+              }
+              await loadPerks();
+              return;
+          }
+
+          if (action === "edit") {
+              const perk = perks.find(x => String(x.id) === String(id));
+              if (!perk) return;
+
+              const newCooldown = prompt("Cooldown seconds:", String(perk.cooldown_seconds ?? 0));
+              if (newCooldown === null) return;
+
+              // Minimal edit: cooldown + enabled stays as is (safe). We can expand later.
+              setStatus("Updating…");
+              const out = await fetch(`${API_BASE}/api/vendor/perks/${encodeURIComponent(id)}`, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                      business_id,
+                      cooldown_seconds: Number(newCooldown),
+                      // you can add metadata edits next once you want
+                  })
+              });
+
+              const raw = await out.text();
+              debugEl.textContent = `HTTP ${out.status}\n` + raw;
+              let data = {};
+              try { data = raw ? JSON.parse(raw) : {}; } catch (_) { }
+              if (!out.ok || !data.ok) {
+                  alert(`Failed: ${data.error || "UNKNOWN"}`);
+                  return;
+              }
+              await loadPerks();
+              return;
+          }
 
         setStatus(`${action}...`);
         const url = `${API_BASE}/api/vendor/perks/${encodeURIComponent(id)}/${action}`;

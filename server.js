@@ -1114,6 +1114,206 @@ app.post("/api/vendor/perks/:id/disable", async (req, res) => {
     }
 });
 
+// -----------------------------------------------------------------------------
+// Vendor API: Create / Update / Delete perks
+// -----------------------------------------------------------------------------
+
+function validateVendorPerkInput(input) {
+    const out = {};
+
+    // required
+    out.gram_id = String(input.gram_id || "").trim();
+    out.business_id = String(input.business_id || "").trim();
+    out.type = String(input.type || "").trim();
+
+    if (!out.gram_id) throw new Error("MISSING_GRAM_ID");
+    if (!out.business_id) throw new Error("MISSING_BUSINESS_ID");
+    if (!out.type) throw new Error("MISSING_TYPE");
+
+    // optional
+    out.business_name = (input.business_name || "").toString().trim() || null;
+    out.enabled = (input.enabled === undefined ? true : !!input.enabled);
+    out.cooldown_seconds = Number(input.cooldown_seconds || 0);
+    if (isNaN(out.cooldown_seconds) || out.cooldown_seconds < 0) throw new Error("INVALID_COOLDOWN");
+
+    // metadata
+    out.metadata = input.metadata && typeof input.metadata === "object" ? input.metadata : {};
+
+    // Type-specific guardrails (keep minimal, aligned with your current perk types)
+    if (out.type === "shopify_discount") {
+        const kind = out.metadata.kind || "percent";
+        const value = out.metadata.value;
+        if (!["percent", "fixed"].includes(kind)) throw new Error("INVALID_DISCOUNT_KIND");
+        if (value == null || isNaN(Number(value))) throw new Error("MISSING_DISCOUNT_VALUE");
+    }
+
+    if (out.type === "shopify_free_product") {
+        const variantId = out.metadata.variant_id;
+        if (!variantId) throw new Error("MISSING_VARIANT_ID");
+        const qty = out.metadata.quantity ?? 1;
+        if (isNaN(Number(qty)) || Number(qty) <= 0) throw new Error("INVALID_QUANTITY");
+    }
+
+    return out;
+}
+
+// POST /api/vendor/perks
+// body: { business_id, gram_id, business_name?, type, cooldown_seconds?, enabled?, metadata? }
+app.post("/api/vendor/perks", async (req, res) => {
+    try {
+        const businessId = requireBusinessId(req);
+        if (!businessId) return res.status(400).json({ ok: false, error: "MISSING_BUSINESS_ID" });
+
+        const input = validateVendorPerkInput({ ...req.body, business_id: businessId });
+
+        // Confirm vendor boundary (business_id from auth must match payload)
+        if (String(input.business_id) !== String(businessId)) {
+            return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+        }
+
+        // Generate a stable perk_id for snapshot + redeem usage
+        // (This is the "p.id" you already use in grams.perks)
+        const perk_id = `PERK-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 6)}`.toUpperCase();
+
+        const row = {
+            gram_id: input.gram_id,
+            perk_id,
+            business_id: input.business_id,
+            business_name: input.business_name,
+            type: input.type,
+            metadata: input.metadata,
+            cooldown_seconds: input.cooldown_seconds,
+            enabled: input.enabled,
+            updated_at: new Date().toISOString(),
+        };
+
+        const { data: created, error } = await supabase
+            .from("perks")
+            .insert(row)
+            .select("*")
+            .single();
+
+        if (error) throw error;
+
+        // rebuild snapshot
+        const db = new SupabaseDB();
+        const updatedGram = await db.rebuildGramPerksSnapshot(created.gram_id);
+
+        return res.json({ ok: true, perk: created, gram: updatedGram });
+    } catch (err) {
+        console.error("Vendor perk create error:", err);
+        return res.status(400).json({ ok: false, error: err.message || "VENDOR_PERK_CREATE_ERROR" });
+    }
+});
+
+// PUT /api/vendor/perks/:id
+// body: { business_id, business_name?, cooldown_seconds?, enabled?, metadata?, type? }
+// Note: allow editing type only if you want; currently allowed here but can be locked down.
+app.put("/api/vendor/perks/:id", async (req, res) => {
+    try {
+        const businessId = requireBusinessId(req);
+        const perkRowId = req.params.id;
+
+        if (!businessId) return res.status(400).json({ ok: false, error: "MISSING_BUSINESS_ID" });
+        if (!perkRowId) return res.status(400).json({ ok: false, error: "MISSING_PERK_ROW_ID" });
+
+        // Load perk row
+        const { data: perk, error: pErr } = await supabase
+            .from("perks")
+            .select("*")
+            .eq("id", perkRowId)
+            .single();
+
+        if (pErr || !perk) return res.status(404).json({ ok: false, error: "PERK_NOT_FOUND" });
+
+        // vendor boundary
+        if (String(perk.business_id) !== String(businessId)) {
+            return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+        }
+
+        // Merge incoming with existing so validation can run safely
+        const merged = {
+            gram_id: perk.gram_id,
+            business_id: businessId,
+            business_name: req.body.business_name ?? perk.business_name,
+            type: req.body.type ?? perk.type,
+            cooldown_seconds: req.body.cooldown_seconds ?? perk.cooldown_seconds,
+            enabled: req.body.enabled ?? perk.enabled,
+            metadata: req.body.metadata ?? perk.metadata,
+        };
+
+        const input = validateVendorPerkInput(merged);
+
+        const patch = {
+            business_name: input.business_name,
+            type: input.type,
+            metadata: input.metadata,
+            cooldown_seconds: input.cooldown_seconds,
+            enabled: input.enabled,
+            updated_at: new Date().toISOString(),
+        };
+
+        const { data: updatedPerk, error: uErr } = await supabase
+            .from("perks")
+            .update(patch)
+            .eq("id", perkRowId)
+            .select("*")
+            .single();
+
+        if (uErr) throw uErr;
+
+        const db = new SupabaseDB();
+        const updatedGram = await db.rebuildGramPerksSnapshot(updatedPerk.gram_id);
+
+        return res.json({ ok: true, perk: updatedPerk, gram: updatedGram });
+    } catch (err) {
+        console.error("Vendor perk update error:", err);
+        return res.status(400).json({ ok: false, error: err.message || "VENDOR_PERK_UPDATE_ERROR" });
+    }
+});
+
+// DELETE /api/vendor/perks/:id
+// body: { business_id }
+app.delete("/api/vendor/perks/:id", async (req, res) => {
+    try {
+        const businessId = requireBusinessId(req);
+        const perkRowId = req.params.id;
+
+        if (!businessId) return res.status(400).json({ ok: false, error: "MISSING_BUSINESS_ID" });
+        if (!perkRowId) return res.status(400).json({ ok: false, error: "MISSING_PERK_ROW_ID" });
+
+        // Load perk
+        const { data: perk, error: pErr } = await supabase
+            .from("perks")
+            .select("*")
+            .eq("id", perkRowId)
+            .single();
+
+        if (pErr || !perk) return res.status(404).json({ ok: false, error: "PERK_NOT_FOUND" });
+
+        if (String(perk.business_id) !== String(businessId)) {
+            return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+        }
+
+        const gramId = perk.gram_id;
+
+        const { error: dErr } = await supabase
+            .from("perks")
+            .delete()
+            .eq("id", perkRowId);
+
+        if (dErr) throw dErr;
+
+        const db = new SupabaseDB();
+        const updatedGram = await db.rebuildGramPerksSnapshot(gramId);
+
+        return res.json({ ok: true, deleted: true, gram: updatedGram });
+    } catch (err) {
+        console.error("Vendor perk delete error:", err);
+        return res.status(400).json({ ok: false, error: err.message || "VENDOR_PERK_DELETE_ERROR" });
+    }
+});
+
 
 // Get next Gram ID (e.g. G001 → G002) based on existing records in Supabase
 app.get('/api/producer/next-id', async (req, res) => {
