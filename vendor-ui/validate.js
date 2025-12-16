@@ -21,7 +21,11 @@
     businessIdEl.value = localStorage.getItem("vendor_business_id") || "";
     vendorSecretEl.value = localStorage.getItem("vendor_secret") || "";
     nfcTagIdEl.value = qs("nfcTagId") || qs("tag") || "";
-  }
+    }
+    if (!(nfcTagIdEl.value || "").trim()) {
+        setStatus("Ready. Tap a Gram NFC tag or paste an nfcTagId.");
+    }
+
 
   saveAuthBtn.onclick = () => {
     const bid = (businessIdEl.value || "").trim();
@@ -112,17 +116,16 @@
                 : `On cooldown (${msToHuman(p.cooldown_remaining_ms)})`;
 
               return `
-                <div style="border:1px solid #eee;border-radius:12px;padding:12px;margin-top:10px;">
-                  <div><strong>${p.business_name || p.business_id}</strong> — <span class="muted">${p.type}</span></div>
-                  <div class="muted" style="margin-top:6px;">Perk ID: ${p.id}</div>
-                  <div class="row" style="margin-top:10px;">
-                    <button class="btn ${disabled ? "" : "primary"}"
-                      data-approve="${p.id}"
-                      ${disabled ? "disabled" : ""}>
-                      ${label}
-                    </button>
-                  </div>
+                <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
+                <div>
+                   <strong>${p.business_name || p.business_id}</strong>
+                   <div class="muted" style="margin-top:4px;">${p.type}</div>
                 </div>
+                 <div class="muted" style="text-align:right;">
+                 ${p.cooldown_seconds ? `Cooldown: ${p.cooldown_seconds}s` : ""}
+                 </div>
+               </div>
+
               `;
             }).join("")}
           </div>

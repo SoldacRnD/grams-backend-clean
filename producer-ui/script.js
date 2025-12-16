@@ -1345,6 +1345,100 @@ document.addEventListener('DOMContentLoaded', () => {
         // redirect to Shopify cart/checkout with discount applied
         window.location.href = data.checkout_url;
     }
+    // Vendor Create Secure key in Prod UI
+    (function () {
+        const adminKeyEl = document.getElementById("adminKey");
+        const saveAdminKeyBtn = document.getElementById("saveAdminKey");
+        const createVendorBtn = document.getElementById("createVendorBtn");
+        const copyVendorSecretBtn = document.getElementById("copyVendorSecret");
+
+        const bidEl = document.getElementById("vendorBusinessId");
+        const bnameEl = document.getElementById("vendorBusinessName");
+        const addrEl = document.getElementById("vendorAddress");
+        const mapsEl = document.getElementById("vendorMapsUrl");
+
+        const secretOutEl = document.getElementById("vendorSecretOut");
+        const debugEl = document.getElementById("vendorCreateDebug");
+
+        if (!createVendorBtn) return; // Producer UI page might not include the card yet
+
+        function loadAdminKey() {
+            adminKeyEl.value = localStorage.getItem("producer_admin_key") || "";
+        }
+
+        saveAdminKeyBtn.onclick = () => {
+            const k = (adminKeyEl.value || "").trim();
+            if (!k) return alert("ADMIN_KEY required");
+            localStorage.setItem("producer_admin_key", k);
+            alert("Saved.");
+        };
+
+        async function createVendor() {
+            const adminKey = (adminKeyEl.value || localStorage.getItem("producer_admin_key") || "").trim();
+            if (!adminKey) return alert("ADMIN_KEY required");
+
+            const business_id = (bidEl.value || "").trim();
+            const business_name = (bnameEl.value || "").trim();
+
+            if (!business_id) return alert("Business ID required");
+            if (!business_name) return alert("Business Name required");
+
+            const body = {
+                business_id,
+                business_name,
+                address: (addrEl.value || "").trim() || null,
+                maps_url: (mapsEl.value || "").trim() || null,
+            };
+
+            debugEl.textContent = "Creating vendor…";
+            secretOutEl.value = "";
+
+            const res = await fetch("/api/producer/vendors", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Admin-Key": adminKey,
+                },
+                body: JSON.stringify(body),
+            });
+
+            const raw = await res.text();
+            debugEl.textContent = `HTTP ${res.status}\n` + raw;
+
+            let data = {};
+            try { data = raw ? JSON.parse(raw) : {}; } catch (_) { }
+
+            if (!res.ok || !data.ok) {
+                alert(data.error || "Create vendor failed");
+                return;
+            }
+
+            secretOutEl.value = data.vendor_secret || "";
+            if (!secretOutEl.value) {
+                alert("Vendor created, but no vendor_secret returned. Check server endpoint.");
+                return;
+            }
+
+            alert("Vendor created. Copy Vendor Key now (it cannot be recovered later).");
+        }
+
+        createVendorBtn.onclick = createVendor;
+
+        copyVendorSecretBtn.onclick = async () => {
+            const v = (secretOutEl.value || "").trim();
+            if (!v) return alert("No Vendor Key to copy");
+            try {
+                await navigator.clipboard.writeText(v);
+                alert("Copied.");
+            } catch (e) {
+                secretOutEl.select();
+                document.execCommand("copy");
+                alert("Copied (fallback).");
+            }
+        };
+
+        loadAdminKey();
+    })();
 
 
     // Generate Gram JSON & URLs

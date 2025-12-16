@@ -93,6 +93,44 @@
                     </div>
                 </div>
             </section>
+            <!--Create Vendor Secure Key-->
+            <section class="card" style="margin-top:16px;">
+                <h2>Create Vendor (Secure Key)</h2>
+                <p class="muted">Creates a vendor record and returns a Vendor Key once. Copy it and send to the vendor.</p>
+
+                <div class="grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+                    <div>
+                        <label>Business ID</label>
+                        <input id="vendorBusinessId" placeholder="e.g. Bar11" />
+                    </div>
+                    <div>
+                        <label>Business Name</label>
+                        <input id="vendorBusinessName" placeholder="e.g. BarDaEsquina" />
+                    </div>
+                    <div>
+                        <label>Address (optional)</label>
+                        <input id="vendorAddress" placeholder="Street, City, Country" />
+                    </div>
+                    <div>
+                        <label>Maps URL (optional)</label>
+                        <input id="vendorMapsUrl" placeholder="https://maps.google.com/?q=..." />
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+                    <input id="adminKey" placeholder="ADMIN_KEY (stored locally)" style="min-width:260px;" />
+                    <button id="saveAdminKey">Save Admin Key</button>
+                    <button id="createVendorBtn" class="primary">Create Vendor</button>
+                </div>
+
+                <div style="margin-top:12px;">
+                    <label>Vendor Key (copy now)</label>
+                    <input id="vendorSecretOut" readonly />
+                    <button id="copyVendorSecret">Copy</button>
+                </div>
+
+                <pre id="vendorCreateDebug" class="muted" style="margin-top:12px;white-space:pre-wrap;"></pre>
+            </section>
 
             <!-- Perks -->
             <section class="section">
