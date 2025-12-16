@@ -1323,6 +1323,9 @@ app.put("/api/vendor/perks/:id", requireVendor, async (req, res) => {
             metadata: req.body.metadata ?? perk.metadata,
         };
 
+        // 🔒 Enforce type permissions on UPDATE too (Soldac-only for shopify_*)
+        assertVendorAllowedPerkType(businessId, merged.type);
+
         const input = validateVendorPerkInput(merged);
 
         const patch = {
@@ -1352,7 +1355,7 @@ app.put("/api/vendor/perks/:id", requireVendor, async (req, res) => {
         return res.status(400).json({ ok: false, error: err.message || "VENDOR_PERK_UPDATE_ERROR" });
     }
 });
-assertVendorAllowedPerkType(businessId, merged.type);
+
 
 
 // DELETE /api/vendor/perks/:id
