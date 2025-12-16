@@ -82,6 +82,106 @@ class SupabaseDB {
         return data;
     }
 
+    // ----------------------------
+    // PERKS NORMALIZATION LAYER (Checkpoint 11.0 Part A)
+    // ----------------------------
+
+    // Normalize incoming perk object -> row for perks table
+    normalizePerkRow(gramId, p) {
+        return {
+            gram_id: String(gramId),
+            perk_id: String(p.id || ""), // expects existing perk.id from UI
+            business_id: String(p.business_id || ""),
+            business_name: p.business_name || null,
+            type: String(p.type || ""),
+            metadata: p.metadata || {},
+            cooldown_seconds: Number(p.cooldown_seconds || 0),
+            enabled: (p.enabled === undefined ? true : !!p.enabled),
+            updated_at: new Date().toISOString(),
+        };
+    }
+
+    /**
+     * Replace all perks rows for a gram with the provided array.
+     */
+    async replacePerksForGram(gramId, perksArray) {
+        const perks = Array.isArray(perksArray) ? perksArray : [];
+
+        // 1) delete existing rows
+        const { error: delErr } = await supabase
+            .from("perks")
+            .delete()
+            .eq("gram_id", String(gramId));
+
+        if (delErr) {
+            console.error("replacePerksForGram delete error:", delErr);
+            throw delErr;
+        }
+
+        // 2) insert new
+        if (!perks.length) return [];
+
+        const rows = perks
+            .filter((p) => p && p.id && p.business_id && p.type) // minimal validity
+            .map((p) => this.normalizePerkRow(gramId, p));
+
+        if (!rows.length) return [];
+
+        const { data: ins, error: insErr } = await supabase
+            .from("perks")
+            .insert(rows)
+            .select("*");
+
+        if (insErr) {
+            console.error("replacePerksForGram insert error:", insErr);
+            throw insErr;
+        }
+
+        return ins || [];
+    }
+
+    /**
+     * Reads enabled perks from perks table, compiles them back into grams.perks snapshot.
+     * Returns updated gram row.
+     */
+    async rebuildGramPerksSnapshot(gramId) {
+        const { data: perkRows, error: pErr } = await supabase
+            .from("perks")
+            .select("perk_id,business_id,business_name,type,metadata,cooldown_seconds,enabled,created_at")
+            .eq("gram_id", String(gramId))
+            .eq("enabled", true)
+            .order("created_at", { ascending: true });
+
+        if (pErr) {
+            console.error("rebuildGramPerksSnapshot perks select error:", pErr);
+            throw pErr;
+        }
+
+        const compiled = (perkRows || []).map((r) => ({
+            id: r.perk_id,
+            business_id: r.business_id,
+            business_name: r.business_name,
+            type: r.type,
+            metadata: r.metadata || {},
+            cooldown_seconds: r.cooldown_seconds || 0,
+        }));
+
+        const { data: updated, error: uErr } = await supabase
+            .from("grams")
+            .update({ perks: compiled })
+            .eq("id", String(gramId))
+            .select("*")
+            .single();
+
+        if (uErr) {
+            console.error("rebuildGramPerksSnapshot grams update error:", uErr);
+            throw uErr;
+        }
+
+        return updated;
+    }
+
+
     // Optional legacy helper: append a single perk to existing perks
     async addPerk(gramId, perk) {
         // Read existing perks
@@ -239,6 +339,104 @@ class SupabaseDB {
             console.error('Supabase deleteGram error:', error);
             throw error;
         }
+    }
+
+    // Normalize incoming perk object -> row for perks table
+    normalizePerkRow(gramId, p) {
+        return {
+            gram_id: String(gramId),
+            perk_id: String(p.id || ""),                  // expects existing perk.id from UI
+            business_id: String(p.business_id || ""),
+            business_name: p.business_name || null,
+            type: String(p.type || ""),
+            metadata: p.metadata || {},
+            cooldown_seconds: Number(p.cooldown_seconds || 0),
+            enabled: (p.enabled === undefined ? true : !!p.enabled),
+            updated_at: new Date().toISOString(),
+        };
+    }
+
+    /**
+     * Replace all perks rows for a gram with the provided array.
+     * (Authoritative sync from grams.perks snapshot for now.)
+     */
+    async replacePerksForGram(gramId, perksArray) {
+        const perks = Array.isArray(perksArray) ? perksArray : [];
+
+        // 1) delete existing
+        const { error: delErr } = await supabase
+            .from('perks')
+            .delete()
+            .eq('gram_id', String(gramId));
+
+        if (delErr) {
+            console.error('replacePerksForGram delete error:', delErr);
+            throw delErr;
+        }
+
+        // 2) insert new (skip empty)
+        if (!perks.length) return [];
+
+        const rows = perks
+            .filter(p => p && p.id && p.business_id && p.type) // minimal validity
+            .map(p => this.normalizePerkRow(gramId, p));
+
+        if (!rows.length) return [];
+
+        const { data: ins, error: insErr } = await supabase
+            .from('perks')
+            .insert(rows)
+            .select('*');
+
+        if (insErr) {
+            console.error('replacePerksForGram insert error:', insErr);
+            throw insErr;
+        }
+
+        return ins || [];
+    }
+
+    /**
+     * Reads enabled perks from perks table, compiles them back into grams.perks snapshot.
+     * Returns updated gram row.
+     */
+    async rebuildGramPerksSnapshot(gramId) {
+        const { data: perkRows, error: pErr } = await supabase
+            .from('perks')
+            .select('perk_id,business_id,business_name,type,metadata,cooldown_seconds,enabled,created_at')
+            .eq('gram_id', String(gramId))
+            .eq('enabled', true)
+            .order('created_at', { ascending: true });
+
+        if (pErr) {
+            console.error('rebuildGramPerksSnapshot perks select error:', pErr);
+            throw pErr;
+        }
+
+        // Compile to the exact shape your frontend + redeem endpoint expects today
+        const compiled = (perkRows || []).map(r => ({
+            id: r.perk_id,
+            business_id: r.business_id,
+            business_name: r.business_name,
+            type: r.type,
+            metadata: r.metadata || {},
+            cooldown_seconds: r.cooldown_seconds || 0,
+            // (we omit enabled in snapshot; only enabled perks are compiled)
+        }));
+
+        const { data: updated, error: uErr } = await supabase
+            .from('grams')
+            .update({ perks: compiled })
+            .eq('id', String(gramId))
+            .select('*')
+            .single();
+
+        if (uErr) {
+            console.error('rebuildGramPerksSnapshot grams update error:', uErr);
+            throw uErr;
+        }
+
+        return updated;
     }
 
 
