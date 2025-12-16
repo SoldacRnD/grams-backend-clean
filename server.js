@@ -1394,7 +1394,7 @@ app.delete("/api/vendor/perks/:id", async (req, res) => {
         return res.status(400).json({ ok: false, error: err.message || "VENDOR_PERK_DELETE_ERROR" });
     }
 });
-// GET with just /vendor/validate
+// GET with just /vendor/validate no need for .html
 app.get('/vendor/validate', (req, res) => {
     const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
     res.redirect('/vendor/validate.html' + qs);
