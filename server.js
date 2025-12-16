@@ -1394,6 +1394,12 @@ app.delete("/api/vendor/perks/:id", async (req, res) => {
         return res.status(400).json({ ok: false, error: err.message || "VENDOR_PERK_DELETE_ERROR" });
     }
 });
+// GET with just /vendor/validate
+app.get('/vendor/validate', (req, res) => {
+    const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    res.redirect('/vendor/validate.html' + qs);
+});
+
 // GET /api/vendor/validate?nfcTagId=...
 // headers: X-Business-Id, X-Vendor-Secret
 app.get("/api/vendor/validate", requireVendor, async (req, res) => {
