@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Vendor — Validate Gram</title>
+  <link rel="stylesheet" href="./vendor.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <h1>Validate Gram</h1>
+        <p class="muted">Tap the physical Gram to this phone to validate perks.</p>
+      </div>
+      <a class="btn" href="/vendor">Manage</a>
+    </header>
+
+    <div class="card">
+      <div class="form">
+        <div class="grid">
+          <div>
+            <label class="label">Business ID</label>
+            <input id="businessId" class="input" placeholder="e.g. Bar11" />
+          </div>
+          <div>
+            <label class="label">Vendor Key</label>
+            <input id="vendorSecret" class="input" placeholder="••••••••" />
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="saveAuth" class="btn">Save</button>
+          <input id="nfcTagId" class="input" placeholder="nfcTagId (auto from URL)" />
+          <button id="load" class="btn primary">Validate</button>
+        </div>
+
+        <p id="status" class="status muted"></p>
+      </div>
+    </div>
+
+    <div id="result"></div>
+
+    <script src="./validate.js"></script>
+  </div>
+</body>
+</html>

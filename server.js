@@ -11,6 +11,63 @@ const PORT = process.env.PORT || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 const app = express();
 const { listProducts, createProductForGram, updateProductForGram, syncGramMetafieldsToShopify } = require('./db/shopify');
+const crypto = require("crypto");
+
+const VENDOR_SECRET_SALT = process.env.VENDOR_SECRET_SALT || "CHANGE_ME";
+const ADMIN_KEY = process.env.ADMIN_KEY || "";
+const SOLDAC_BUSINESS_ID = process.env.SOLDAC_BUSINESS_ID || "SOLDAC";
+
+function hashVendorSecret(secret) {
+    return crypto
+        .createHmac("sha256", VENDOR_SECRET_SALT)
+        .update(String(secret || ""))
+        .digest("hex");
+}
+
+function safeEqual(a, b) {
+    const aa = Buffer.from(String(a || ""), "utf8");
+    const bb = Buffer.from(String(b || ""), "utf8");
+    if (aa.length !== bb.length) return false;
+    return crypto.timingSafeEqual(aa, bb);
+}
+
+async function requireVendor(req, res, next) {
+    try {
+        const business_id =
+            (req.headers["x-business-id"] || req.query.business_id || req.body?.business_id || "")
+                .toString()
+                .trim();
+
+        const vendor_secret =
+            (req.headers["x-vendor-secret"] || req.body?.vendor_secret || "")
+                .toString()
+                .trim();
+
+        if (!business_id) return res.status(401).json({ ok: false, error: "MISSING_BUSINESS_ID" });
+        if (!vendor_secret) return res.status(401).json({ ok: false, error: "MISSING_VENDOR_SECRET" });
+
+        const { data: vendor, error } = await supabase
+            .from("vendors")
+            .select("*")
+            .eq("business_id", business_id)
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!vendor) return res.status(401).json({ ok: false, error: "VENDOR_NOT_FOUND" });
+
+        const expected = vendor.secret_hash;
+        const got = hashVendorSecret(vendor_secret);
+        if (!safeEqual(expected, got)) {
+            return res.status(401).json({ ok: false, error: "INVALID_VENDOR_SECRET" });
+        }
+
+        req.vendor = vendor; // attach for downstream
+        next();
+    } catch (err) {
+        console.error("Vendor auth error:", err);
+        return res.status(500).json({ ok: false, error: "VENDOR_AUTH_ERROR" });
+    }
+}
 
 
 // Middleware
@@ -1117,6 +1174,14 @@ app.post("/api/vendor/perks/:id/disable", async (req, res) => {
 // -----------------------------------------------------------------------------
 // Vendor API: Create / Update / Delete perks
 // -----------------------------------------------------------------------------
+function assertVendorAllowedPerkType(vendorBusinessId, type) {
+    const t = String(type || "");
+    if (t.startsWith("shopify_") && String(vendorBusinessId) !== String(SOLDAC_BUSINESS_ID)) {
+        const e = new Error("FORBIDDEN_SHOPIFY_PERK_TYPE");
+        e.status = 403;
+        throw e;
+    }
+}
 
 function validateVendorPerkInput(input) {
     const out = {};
@@ -1313,6 +1378,162 @@ app.delete("/api/vendor/perks/:id", async (req, res) => {
         return res.status(400).json({ ok: false, error: err.message || "VENDOR_PERK_DELETE_ERROR" });
     }
 });
+// GET /api/vendor/validate?nfcTagId=...
+// headers: X-Business-Id, X-Vendor-Secret
+app.get("/api/vendor/validate", requireVendor, async (req, res) => {
+    try {
+        const nfcTagId = String(req.query.nfcTagId || req.query.tag || "").trim();
+        if (!nfcTagId) return res.status(400).json({ ok: false, error: "MISSING_NFC_TAG_ID" });
+
+        const db = new SupabaseDB();
+        const gram = await db.getGramByTag(nfcTagId);
+        if (!gram) return res.status(404).json({ ok: false, error: "GRAM_NOT_FOUND" });
+
+        const vendor = req.vendor;
+        const perks = Array.isArray(gram.perks) ? gram.perks : [];
+
+        // only perks for this vendor + only in-person types (partners shouldn't see shopify perks)
+        const vendorPerks = perks.filter(p =>
+            String(p.business_id) === String(vendor.business_id) &&
+            !String(p.type || "").startsWith("shopify_")
+        );
+
+        // compute cooldown state per perk (per gram/perk/business)
+        const now = Date.now();
+
+        const computed = [];
+        for (const p of vendorPerks) {
+            const cooldown = Number(p.cooldown_seconds || 0);
+
+            const { data: lastRows, error } = await supabase
+                .from("perk_redemptions")
+                .select("redeemed_at")
+                .eq("gram_id", String(gram.id))
+                .eq("perk_id", String(p.id))
+                .eq("business_id", String(vendor.business_id))
+                .order("redeemed_at", { ascending: false })
+                .limit(1);
+
+            if (error) throw error;
+
+            const lastAt = lastRows?.[0]?.redeemed_at ? new Date(lastRows[0].redeemed_at).getTime() : null;
+            const remaining = lastAt && cooldown > 0 ? (lastAt + cooldown * 1000) - now : 0;
+
+            computed.push({
+                ...p,
+                state: remaining > 0 ? "cooldown" : "available",
+                cooldown_remaining_ms: Math.max(0, remaining),
+                last_redeemed_at: lastRows?.[0]?.redeemed_at || null,
+            });
+        }
+
+        return res.json({
+            ok: true,
+            vendor: {
+                business_id: vendor.business_id,
+                business_name: vendor.business_name,
+                address: vendor.address,
+                maps_url: vendor.maps_url,
+                lat: vendor.lat,
+                lng: vendor.lng,
+            },
+            gram: {
+                id: gram.id,
+                title: gram.title,
+                image_url: gram.image_url,
+                nfc_tag_id: gram.nfc_tag_id,
+            },
+            perks: computed,
+        });
+    } catch (err) {
+        console.error("Vendor validate GET error:", err);
+        return res.status(500).json({ ok: false, error: "VENDOR_VALIDATE_ERROR" });
+    }
+});
+// POST /api/vendor/validate/approve
+// body: { nfcTagId, perk_id }
+// headers: X-Business-Id, X-Vendor-Secret
+app.post("/api/vendor/validate/approve", requireVendor, async (req, res) => {
+    try {
+        const nfcTagId = String(req.body?.nfcTagId || req.body?.tag || "").trim();
+        const perk_id = String(req.body?.perk_id || "").trim();
+        if (!nfcTagId) return res.status(400).json({ ok: false, error: "MISSING_NFC_TAG_ID" });
+        if (!perk_id) return res.status(400).json({ ok: false, error: "MISSING_PERK_ID" });
+
+        const vendor = req.vendor;
+
+        const db = new SupabaseDB();
+        const gram = await db.getGramByTag(nfcTagId);
+        if (!gram) return res.status(404).json({ ok: false, error: "GRAM_NOT_FOUND" });
+
+        const perks = Array.isArray(gram.perks) ? gram.perks : [];
+        const perk = perks.find(p => String(p.id) === String(perk_id));
+        if (!perk) return res.status(404).json({ ok: false, error: "PERK_NOT_FOUND_ON_GRAM" });
+
+        // vendor boundary
+        if (String(perk.business_id) !== String(vendor.business_id)) {
+            return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+        }
+
+        // disallow shopify_* through vendor validation
+        if (String(perk.type || "").startsWith("shopify_")) {
+            return res.status(403).json({ ok: false, error: "FORBIDDEN_SHOPIFY_PERK_VALIDATION" });
+        }
+
+        // cooldown check
+        const cooldown = Number(perk.cooldown_seconds || 0);
+        const { data: lastRows, error: lastErr } = await supabase
+            .from("perk_redemptions")
+            .select("redeemed_at")
+            .eq("gram_id", String(gram.id))
+            .eq("perk_id", String(perk.id))
+            .eq("business_id", String(vendor.business_id))
+            .order("redeemed_at", { ascending: false })
+            .limit(1);
+
+        if (lastErr) throw lastErr;
+
+        const now = Date.now();
+        const lastAt = lastRows?.[0]?.redeemed_at ? new Date(lastRows[0].redeemed_at).getTime() : null;
+        if (lastAt && cooldown > 0) {
+            const remaining = (lastAt + cooldown * 1000) - now;
+            if (remaining > 0) {
+                return res.status(429).json({
+                    ok: false,
+                    error: "ON_COOLDOWN",
+                    cooldown_remaining_ms: remaining,
+                    last_redeemed_at: lastRows[0].redeemed_at,
+                });
+            }
+        }
+
+        // log redemption
+        const { data: ins, error: insErr } = await supabase
+            .from("perk_redemptions")
+            .insert({
+                gram_id: String(gram.id),
+                perk_id: String(perk.id),
+                business_id: String(vendor.business_id),
+                channel: "in_person",
+                redeemer_customer_id: null,
+            })
+            .select("*")
+            .single();
+
+        if (insErr) throw insErr;
+
+        return res.json({
+            ok: true,
+            redeemed: ins,
+            gram_id: gram.id,
+            perk_id: perk.id,
+        });
+    } catch (err) {
+        console.error("Vendor approve error:", err);
+        return res.status(500).json({ ok: false, error: "VENDOR_APPROVE_ERROR" });
+    }
+});
+
 
 
 // Get next Gram ID (e.g. G001 → G002) based on existing records in Supabase
@@ -1473,6 +1694,61 @@ app.post('/internal/notion/checkpoints', async (req, res) => {
             error: 'NOTION_CHECKPOINT_ERROR',
             details: err.message || String(err),
         });
+    }
+});
+// -----------------------------------------------------------------------------
+// Producer-only: Create vendor (stores hash, returns plaintext secret once)
+// -----------------------------------------------------------------------------
+app.post("/api/producer/vendors", requireAdmin, async (req, res) => {
+    try {
+        const business_id = String(req.body?.business_id || "").trim();
+        const business_name = String(req.body?.business_name || "").trim() || null;
+
+        const address = String(req.body?.address || "").trim() || null;
+        const maps_url = String(req.body?.maps_url || "").trim() || null;
+        const lat = req.body?.lat != null ? Number(req.body.lat) : null;
+        const lng = req.body?.lng != null ? Number(req.body.lng) : null;
+
+        if (!business_id) return res.status(400).json({ ok: false, error: "MISSING_BUSINESS_ID" });
+
+        const vendor_secret = makeVendorSecret();
+        const secret_hash = hashVendorSecret(vendor_secret);
+
+        const row = {
+            business_id,
+            business_name,
+            secret_hash,
+            address,
+            maps_url,
+            lat: isNaN(lat) ? null : lat,
+            lng: isNaN(lng) ? null : lng,
+            updated_at: new Date().toISOString(),
+        };
+
+        const { data: created, error } = await supabase
+            .from("vendors")
+            .insert(row)
+            .select("business_id,business_name,address,maps_url,lat,lng,created_at,updated_at")
+            .single();
+
+        if (error) {
+            // handle duplicate business_id cleanly
+            if (String(error.message || "").toLowerCase().includes("duplicate")) {
+                return res.status(409).json({ ok: false, error: "VENDOR_ALREADY_EXISTS" });
+            }
+            throw error;
+        }
+
+        // IMPORTANT: return plaintext secret ONLY ONCE
+        return res.json({
+            ok: true,
+            vendor: created,
+            vendor_secret, // copy and give to the vendor
+            note: "Save this vendor_secret now. It cannot be recovered later (only reset).",
+        });
+    } catch (err) {
+        console.error("Create vendor error:", err);
+        return res.status(500).json({ ok: false, error: "CREATE_VENDOR_ERROR" });
     }
 });
 
