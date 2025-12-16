@@ -1769,17 +1769,27 @@ app.post("/api/producer/vendors", requireAdmin, async (req, res) => {
 });
 
 //temp testing
-app.get('/_debug/vendor-files', (req, res) => {
-    const fs = require('fs');
-    const p = require('path');
-    const dir = p.join(__dirname, 'vendor-ui');
-    try {
-        const files = fs.readdirSync(dir);
-        return res.json({ ok: true, dir, files });
-    } catch (e) {
-        return res.status(500).json({ ok: false, dir, error: String(e) });
-    }
+app.get("/_debug/runtime", (req, res) => {
+    const fs = require("fs");
+    const path = require("path");
+
+    const file = path.join(__dirname, "server.js");
+    const src = fs.readFileSync(file, "utf8");
+
+    const matches = src.match(/require\(["']crypto["']\)/g) || [];
+    res.json({
+        ok: true,
+        render_git_commit: process.env.RENDER_GIT_COMMIT || null,
+        node_version: process.version,
+        crypto_require_count: matches.length,
+        crypto_require_preview_lines: src
+            .split("\n")
+            .map((line, i) => ({ i: i + 1, line }))
+            .filter((x) => x.line.includes(`require("crypto")`) || x.line.includes(`require('crypto')`))
+            .slice(0, 10),
+    });
 });
+
 
 
 // -----------------------------------------------------------------------------
