@@ -959,6 +959,156 @@ app.post("/api/perks/redeem", async (req, res) => {
     }
 });
 
+// -----------------------------------------------------------------------------
+// Vendor API (Checkpoint 11.1 / Option A)
+// Minimal partner endpoints for managing perks by business_id
+// -----------------------------------------------------------------------------
+//
+// Auth model (Phase 1):
+// - Vendor sends business_id (query param for GET, JSON body for POST).
+// - Server enforces that business_id matches the perk row being mutated.
+// - Later we can add vendor tokens / signed links without changing the API shape.
+//
+
+function requireBusinessId(req) {
+    const businessId =
+        (req.query.business_id || "").trim() ||
+        (req.body?.business_id || "").trim() ||
+        (req.headers["x-business-id"] || "").toString().trim();
+
+    return businessId || null;
+}
+
+// GET /api/vendor/perks?business_id=Bar11
+// Optional: &gram_id=G002  (to narrow)
+app.get("/api/vendor/perks", async (req, res) => {
+    try {
+        const businessId = requireBusinessId(req);
+        const gramId = (req.query.gram_id || "").trim() || null;
+
+        if (!businessId) {
+            return res.status(400).json({ ok: false, error: "MISSING_BUSINESS_ID" });
+        }
+
+        let q = supabase
+            .from("perks")
+            .select("id, gram_id, perk_id, business_id, business_name, type, metadata, cooldown_seconds, enabled, created_at, updated_at")
+            .eq("business_id", businessId)
+            .order("created_at", { ascending: false });
+
+        if (gramId) q = q.eq("gram_id", gramId);
+
+        const { data, error } = await q;
+        if (error) throw error;
+
+        return res.json({ ok: true, perks: data || [] });
+    } catch (err) {
+        console.error("Vendor perks list error:", err);
+        return res.status(500).json({ ok: false, error: "VENDOR_PERKS_LIST_ERROR" });
+    }
+});
+
+// POST /api/vendor/perks/:id/enable
+// body: { business_id: "Bar11" }
+app.post("/api/vendor/perks/:id/enable", async (req, res) => {
+    try {
+        const businessId = requireBusinessId(req);
+        const perkRowId = req.params.id;
+
+        if (!businessId) {
+            return res.status(400).json({ ok: false, error: "MISSING_BUSINESS_ID" });
+        }
+        if (!perkRowId) {
+            return res.status(400).json({ ok: false, error: "MISSING_PERK_ROW_ID" });
+        }
+
+        // 1) Load perk row
+        const { data: perk, error: pErr } = await supabase
+            .from("perks")
+            .select("*")
+            .eq("id", perkRowId)
+            .single();
+
+        if (pErr || !perk) {
+            return res.status(404).json({ ok: false, error: "PERK_NOT_FOUND" });
+        }
+
+        // 2) Enforce vendor boundary
+        if (String(perk.business_id) !== String(businessId)) {
+            return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+        }
+
+        // 3) Update enabled flag
+        const { data: updatedPerk, error: uErr } = await supabase
+            .from("perks")
+            .update({ enabled: true, updated_at: new Date().toISOString() })
+            .eq("id", perkRowId)
+            .select("*")
+            .single();
+
+        if (uErr) throw uErr;
+
+        // 4) Rebuild grams.perks snapshot for this gram (runtime contract)
+        const db = new SupabaseDB();
+        const updatedGram = await db.rebuildGramPerksSnapshot(updatedPerk.gram_id);
+
+        return res.json({ ok: true, perk: updatedPerk, gram: updatedGram });
+    } catch (err) {
+        console.error("Vendor perk enable error:", err);
+        return res.status(500).json({ ok: false, error: "VENDOR_PERK_ENABLE_ERROR" });
+    }
+});
+
+// POST /api/vendor/perks/:id/disable
+// body: { business_id: "Bar11" }
+app.post("/api/vendor/perks/:id/disable", async (req, res) => {
+    try {
+        const businessId = requireBusinessId(req);
+        const perkRowId = req.params.id;
+
+        if (!businessId) {
+            return res.status(400).json({ ok: false, error: "MISSING_BUSINESS_ID" });
+        }
+        if (!perkRowId) {
+            return res.status(400).json({ ok: false, error: "MISSING_PERK_ROW_ID" });
+        }
+
+        // 1) Load perk row
+        const { data: perk, error: pErr } = await supabase
+            .from("perks")
+            .select("*")
+            .eq("id", perkRowId)
+            .single();
+
+        if (pErr || !perk) {
+            return res.status(404).json({ ok: false, error: "PERK_NOT_FOUND" });
+        }
+
+        // 2) Enforce vendor boundary
+        if (String(perk.business_id) !== String(businessId)) {
+            return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+        }
+
+        // 3) Update enabled flag
+        const { data: updatedPerk, error: uErr } = await supabase
+            .from("perks")
+            .update({ enabled: false, updated_at: new Date().toISOString() })
+            .eq("id", perkRowId)
+            .select("*")
+            .single();
+
+        if (uErr) throw uErr;
+
+        // 4) Rebuild grams.perks snapshot for this gram (runtime contract)
+        const db = new SupabaseDB();
+        const updatedGram = await db.rebuildGramPerksSnapshot(updatedPerk.gram_id);
+
+        return res.json({ ok: true, perk: updatedPerk, gram: updatedGram });
+    } catch (err) {
+        console.error("Vendor perk disable error:", err);
+        return res.status(500).json({ ok: false, error: "VENDOR_PERK_DISABLE_ERROR" });
+    }
+});
 
 
 // Get next Gram ID (e.g. G001 → G002) based on existing records in Supabase
