@@ -18,16 +18,31 @@
 
     <div class="card">
       <div class="form">
-        <div class="grid">
-          <div>
-            <label class="label">Business ID</label>
-            <input id="businessId" class="input" placeholder="e.g. Bar11" />
+          <div class="grid">
+              <div class="auth">
+                  <label class="label">Business ID</label>
+                  <div class="row">
+                      <input id="businessId" class="input" placeholder="e.g. Bar11" />
+                  </div>
+
+                  <label class="label" style="margin-top:10px;">Vendor Key</label>
+                  <div class="row">
+                      <input id="vendorSecret" class="input" placeholder="••••••••" />
+                      <button id="saveBusinessId" class="btn">Save</button>
+                  </div>
+
+                  <div class="row">
+                      <input id="gramId" class="input" placeholder="Optional: filter by gram_id (e.g. G002)" />
+                      <button id="loadPerks" class="btn primary">Load perks</button>
+                  </div>
+                  <p id="status" class="status muted"></p>
+              </div>
+
+              <div>
+                  <label class="label">Vendor Key</label>
+                  <input id="vendorSecret" class="input" placeholder="••••••••" />
+              </div>
           </div>
-          <div>
-            <label class="label">Vendor Key</label>
-            <input id="vendorSecret" class="input" placeholder="••••••••" />
-          </div>
-        </div>
 
         <div class="row">
           <button id="saveAuth" class="btn">Save</button>

@@ -1058,9 +1058,9 @@ function requireBusinessId(req) {
 
 // GET /api/vendor/perks?business_id=Bar11
 // Optional: &gram_id=G002  (to narrow)
-app.get("/api/vendor/perks", async (req, res) => {
+app.get("/api/vendor/perks", requireVendor, async (req, res) => {
     try {
-        const businessId = requireBusinessId(req);
+        const businessId = req.vendor.business_id;
         const gramId = (req.query.gram_id || "").trim() || null;
 
         if (!businessId) {
@@ -1087,9 +1087,9 @@ app.get("/api/vendor/perks", async (req, res) => {
 
 // POST /api/vendor/perks/:id/enable
 // body: { business_id: "Bar11" }
-app.post("/api/vendor/perks/:id/enable", async (req, res) => {
+app.post("/api/vendor/perks/:id/enable", requireVendor, async (req, res) => {
     try {
-        const businessId = requireBusinessId(req);
+        const businessId = req.vendor.business_id;
         const perkRowId = req.params.id;
 
         if (!businessId) {
@@ -1138,9 +1138,9 @@ app.post("/api/vendor/perks/:id/enable", async (req, res) => {
 
 // POST /api/vendor/perks/:id/disable
 // body: { business_id: "Bar11" }
-app.post("/api/vendor/perks/:id/disable", async (req, res) => {
+app.post("/api/vendor/perks/:id/disable", requireVendor, async (req, res) => {
     try {
-        const businessId = requireBusinessId(req);
+        const businessId = req.vendor.business_id;
         const perkRowId = req.params.id;
 
         if (!businessId) {
@@ -1240,9 +1240,9 @@ function validateVendorPerkInput(input) {
 
 // POST /api/vendor/perks
 // body: { business_id, gram_id, business_name?, type, cooldown_seconds?, enabled?, metadata? }
-app.post("/api/vendor/perks", async (req, res) => {
+app.post("/api/vendor/perks", requireVendor, async (req, res) => {
     try {
-        const businessId = requireBusinessId(req);
+        const businessId = req.vendor.business_id;
         if (!businessId) return res.status(400).json({ ok: false, error: "MISSING_BUSINESS_ID" });
 
         const input = validateVendorPerkInput({ ...req.body, business_id: businessId });
@@ -1290,9 +1290,9 @@ app.post("/api/vendor/perks", async (req, res) => {
 // PUT /api/vendor/perks/:id
 // body: { business_id, business_name?, cooldown_seconds?, enabled?, metadata?, type? }
 // Note: allow editing type only if you want; currently allowed here but can be locked down.
-app.put("/api/vendor/perks/:id", async (req, res) => {
+app.put("/api/vendor/perks/:id", requireVendor, async (req, res) => {
     try {
-        const businessId = requireBusinessId(req);
+        const businessId = req.vendor.business_id;
         const perkRowId = req.params.id;
 
         if (!businessId) return res.status(400).json({ ok: false, error: "MISSING_BUSINESS_ID" });
@@ -1355,9 +1355,9 @@ app.put("/api/vendor/perks/:id", async (req, res) => {
 
 // DELETE /api/vendor/perks/:id
 // body: { business_id }
-app.delete("/api/vendor/perks/:id", async (req, res) => {
+app.delete("/api/vendor/perks/:id", requireVendor, async (req, res) => {
     try {
-        const businessId = requireBusinessId(req);
+        const businessId = req.vendor.business_id;
         const perkRowId = req.params.id;
 
         if (!businessId) return res.status(400).json({ ok: false, error: "MISSING_BUSINESS_ID" });

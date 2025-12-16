@@ -1,7 +1,9 @@
 (function () {
   const $ = (id) => document.getElementById(id);
 
-  const businessIdEl = $("businessId");
+    const businessIdEl = $("businessId");
+    const vendorSecretEl = document.getElementById("vendorSecret");
+
   const gramIdEl = $("gramId");
   const saveBusinessBtn = $("saveBusinessId");
   const loadBtn = $("loadPerks");
@@ -29,37 +31,64 @@
     try { return JSON.stringify(obj, null, 2); } catch (_) { return String(obj); }
   }
 
-  function loadSaved() {
-    const saved = localStorage.getItem("vendor_business_id") || "";
-    businessIdEl.value = saved;
-  }
+    function loadSaved() {
+        businessIdEl.value = localStorage.getItem("vendor_business_id") || "";
+        if (vendorSecretEl) vendorSecretEl.value = localStorage.getItem("vendor_secret") || "";
+    }
 
-  saveBusinessBtn.onclick = () => {
-    const bid = (businessIdEl.value || "").trim();
-    if (!bid) return alert("Business ID required");
-    localStorage.setItem("vendor_business_id", bid);
-    setStatus("Business ID saved.");
-  };
 
-  async function apiGet(url) {
-    const res = await fetch(url);
-    const text = await res.text();
-    let data = {};
-    try { data = text ? JSON.parse(text) : {}; } catch (_) {}
-    return { ok: res.ok, status: res.status, data, raw: text };
-  }
+    saveBusinessBtn.onclick = () => {
+        const bid = (businessIdEl.value || "").trim();
+        const sec = (vendorSecretEl?.value || "").trim();
 
-  async function apiPost(url, body) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body || {}),
-    });
-    const text = await res.text();
-    let data = {};
-    try { data = text ? JSON.parse(text) : {}; } catch (_) {}
-    return { ok: res.ok, status: res.status, data, raw: text };
-  }
+        if (!bid) return alert("Business ID required");
+        if (!sec) return alert("Vendor Key required");
+
+        localStorage.setItem("vendor_business_id", bid);
+        localStorage.setItem("vendor_secret", sec);
+
+        setStatus("Business ID + Vendor Key saved.");
+    };
+
+
+    async function apiGet(url) {
+        const bid = (businessIdEl.value || localStorage.getItem("vendor_business_id") || "").trim();
+        const sec = (vendorSecretEl?.value || localStorage.getItem("vendor_secret") || "").trim();
+
+        const res = await fetch(url, {
+            headers: {
+                "X-Business-Id": bid,
+                "X-Vendor-Secret": sec,
+            }
+        });
+
+        const text = await res.text();
+        let data = {};
+        try { data = text ? JSON.parse(text) : {}; } catch (_) { }
+        return { ok: res.ok, status: res.status, data, raw: text };
+    }
+
+
+    async function apiPost(url, body) {
+        const bid = (businessIdEl.value || localStorage.getItem("vendor_business_id") || "").trim();
+        const sec = (vendorSecretEl?.value || localStorage.getItem("vendor_secret") || "").trim();
+
+        const res = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Business-Id": bid,
+                "X-Vendor-Secret": sec,
+            },
+            body: JSON.stringify(body || {}),
+        });
+
+        const text = await res.text();
+        let data = {};
+        try { data = text ? JSON.parse(text) : {}; } catch (_) { }
+        return { ok: res.ok, status: res.status, data, raw: text };
+    }
+
     function renderCreateFields() {
         const t = (createTypeEl.value || "").trim();
 
@@ -156,7 +185,6 @@
 
         setStatus("Creating perk…");
         const out = await apiPost(`${API_BASE}/api/vendor/perks`, {
-            business_id,
             gram_id,
             business_name,
             type,
@@ -164,6 +192,7 @@
             enabled: true,
             metadata,
         });
+
 
         debugEl.textContent = `HTTP ${out.status}\n` + (out.raw || "");
         if (!out.ok || !out.data?.ok) {
@@ -253,11 +282,7 @@
           if (action === "delete") {
               if (!confirm("Delete this perk?")) return;
               setStatus("Deleting…");
-              const out = await fetch(`${API_BASE}/api/vendor/perks/${encodeURIComponent(id)}`, {
-                  method: "DELETE",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ business_id })
-              });
+              const out = await apiPost(`${API_BASE}/api/vendor/perks/${encodeURIComponent(id)}`, {});
               const raw = await out.text();
               debugEl.textContent = `HTTP ${out.status}\n` + raw;
               let data = {};
@@ -279,15 +304,10 @@
 
               // Minimal edit: cooldown + enabled stays as is (safe). We can expand later.
               setStatus("Updating…");
-              const out = await fetch(`${API_BASE}/api/vendor/perks/${encodeURIComponent(id)}`, {
-                  method: "PUT",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                      business_id,
-                      cooldown_seconds: Number(newCooldown),
-                      // you can add metadata edits next once you want
-                  })
+              const out = await apiPost(`${API_BASE}/api/vendor/perks/${encodeURIComponent(id)}`, {
+                  cooldown_seconds: Number(newCooldown),
               });
+
 
               const raw = await out.text();
               debugEl.textContent = `HTTP ${out.status}\n` + raw;
@@ -302,8 +322,12 @@
           }
 
         setStatus(`${action}...`);
-        const url = `${API_BASE}/api/vendor/perks/${encodeURIComponent(id)}/${action}`;
-        const out = await apiPost(url, { business_id });
+          const url =
+              `${API_BASE}/api/vendor/perks`
+              + (gram_id ? `?gram_id=${encodeURIComponent(gram_id)}` : "");
+
+        const out = await apiPost(url, {});
+
 
         debugEl.textContent = `HTTP ${out.status}\n` + (out.raw || "");
         if (!out.ok || !out.data?.ok) {
