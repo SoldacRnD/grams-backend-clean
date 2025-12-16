@@ -834,7 +834,6 @@ app.post('/api/producer/grams', async (req, res) => {
 
 // Perks stay in shop and applied on the checkout in Shopify
 
-const crypto = require("crypto");
 const {
     createBasicDiscountCode,
     createFreeProduct100DiscountCode,
