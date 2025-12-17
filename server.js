@@ -94,7 +94,11 @@ function makeVendorSecret() {
 
 // Middleware
 app.use(cors());
-app.use(express.json({ type: '*/*' }));
+function rawBodySaver(req, res, buf) {
+    req.rawBody = buf;
+}
+
+app.use(express.json({ type: "*/*", verify: rawBodySaver }));
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // Import from /notion because you have no /routes folder
@@ -941,6 +945,8 @@ app.post("/api/perks/redeem", async (req, res) => {
                 .eq("gram_id", gram_id)
                 .eq("perk_id", perk_id)
                 .eq("redeemer_fingerprint", redeemerKey);
+                .eq("status", "consumed")
+
 
             if (countErr) {
                 console.log("[redeem] usage_limit count error", countErr);
@@ -967,6 +973,7 @@ app.post("/api/perks/redeem", async (req, res) => {
             .eq("gram_id", gram_id)
             .eq("perk_id", perk_id)
             .eq("redeemer_fingerprint", redeemerKey)
+            .eq("status", "consumed")
             .order("redeemed_at", { ascending: false })
             .limit(1);
 
@@ -1050,6 +1057,7 @@ app.post("/api/perks/redeem", async (req, res) => {
             perk_id,
             redeemer_fingerprint: redeemerKey,
             shopify_discount_code: code,
+            status: "issued",
             metadata: { discountNodeId, type: perk.type },
         });
 
@@ -1084,6 +1092,68 @@ app.post("/api/perks/redeem", async (req, res) => {
         });
     }
 });
+/// -------------- Shopify WebHook endpointy for orders validation
+function verifyShopifyWebhook(req) {
+    const secret = process.env.SHOPIFY_WEBHOOK_SECRET;
+    const hmacHeader = req.get("X-Shopify-Hmac-Sha256") || "";
+    if (!secret || !hmacHeader || !req.rawBody) return false;
+
+    const digest = crypto
+        .createHmac("sha256", secret)
+        .update(req.rawBody)
+        .digest("base64");
+
+    try {
+        return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(hmacHeader));
+    } catch (_) {
+        return false;
+    }
+}
+
+app.post("/api/webhooks/shopify/orders/paid", async (req, res) => {
+    try {
+        if (!verifyShopifyWebhook(req)) {
+            return res.status(401).send("Invalid webhook signature");
+        }
+
+        const order = req.body;
+        const orderId = order?.id ? String(order.id) : null;
+
+        const codes = Array.isArray(order?.discount_codes)
+            ? order.discount_codes.map(d => (d?.code || "").toString().trim()).filter(Boolean)
+            : [];
+
+        if (!codes.length) return res.status(200).json({ ok: true, consumed: 0 });
+
+        let consumed = 0;
+
+        for (const code of codes) {
+            const { data, error } = await supabase
+                .from("redemptions")
+                .update({
+                    status: "consumed",
+                    consumed_at: new Date().toISOString(),
+                    order_id: orderId
+                })
+                .eq("shopify_discount_code", code)
+                .eq("status", "issued")
+                .select("id");
+
+            if (error) {
+                console.error("[orders/paid webhook] update error", { code, error });
+                continue;
+            }
+
+            consumed += (data?.length || 0);
+        }
+
+        return res.status(200).json({ ok: true, consumed });
+    } catch (e) {
+        console.error("[orders/paid webhook] FAILED", e);
+        return res.status(200).send("ok");
+    }
+});
+
 
 // -----------------------------------------------------------------------------
 // Vendor API (Checkpoint 11.1 / Option A)
