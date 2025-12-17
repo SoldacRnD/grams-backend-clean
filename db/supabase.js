@@ -110,7 +110,7 @@ class SupabaseDB {
     }
 
 
-    // ----------------------------
+    // ---------------------------
     // PERKS NORMALIZATION LAYER (Checkpoint 11.0 Part A)
     // ----------------------------
 
