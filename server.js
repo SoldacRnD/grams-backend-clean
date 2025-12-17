@@ -117,22 +117,110 @@ app.use('/vendor', express.static(path.join(__dirname, 'vendor-ui')));
 
 
 // -----------------------------------------------------------------------------
-// List grams by owner (used by "My Grams" page)
+// List grams by owner (used by "My Grams" page) + response with redemption status
 // -----------------------------------------------------------------------------
 app.get('/api/grams', async (req, res) => {
-  const ownerId = req.query.ownerId;
-  if (!ownerId) {
-    return res.status(400).json({ error: 'ownerId required' });
-  }
+    const ownerId = req.query.ownerId;
+    if (!ownerId) {
+        return res.status(400).json({ error: 'ownerId required' });
+    }
 
-  try {
-    const grams = await db.getGramsByOwner(ownerId);
-    return res.json(grams);
-  } catch (err) {
-    console.error('Error fetching grams by owner:', err);
-    return res.status(500).json({ error: 'Server error' });
-  }
+    try {
+        const grams = await db.getGramsByOwner(ownerId);
+
+        // Attach redemption status for shop perks (issued vs consumed)
+        const gramIds = (grams || []).map(g => g.id).filter(Boolean);
+        if (!gramIds.length) return res.json(grams);
+
+        const redeemerKey = `customer:${String(ownerId)}`;
+
+        const { data: reds, error: redsErr } = await supabase
+            .from("redemptions")
+            .select("gram_id, perk_id, status, redeemed_at, consumed_at, order_id, shopify_discount_code")
+            .eq("redeemer_fingerprint", redeemerKey)
+            .in("gram_id", gramIds)
+            .order("redeemed_at", { ascending: false });
+
+        if (redsErr) {
+            console.error("Error fetching redemptions for My Grams:", redsErr);
+            return res.json(grams); // don't break My Grams if audit query fails
+        }
+
+        // latest redemption per (gram_id, perk_id)
+        const latest = new Map();
+        for (const r of (reds || [])) {
+            const key = `${r.gram_id}:${r.perk_id}`;
+            if (!latest.has(key)) latest.set(key, r);
+        }
+
+        const enriched = (grams || []).map(g => {
+            const perks = Array.isArray(g.perks) ? g.perks : [];
+            const perks2 = perks.map(p => {
+                const r = latest.get(`${g.id}:${p.id}`);
+                if (!r) return p;
+
+                return {
+                    ...p,
+                    redemption_status: r.status || null,   // "issued" | "consumed"
+                    redemption_issued_at: r.redeemed_at || null,
+                    redemption_consumed_at: r.consumed_at || null,
+                    redemption_order_id: r.order_id || null,
+                    redemption_code: r.shopify_discount_code || null,
+                };
+            });
+
+            return { ...g, perks: perks2 };
+        });
+        // Collect vendor ids from perks
+        const vendorIds = new Set();
+        for (const g of grams || []) {
+            const perks = Array.isArray(g.perks) ? g.perks : [];
+            for (const p of perks) {
+                if (p?.business_id) vendorIds.add(String(p.business_id));
+            }
+        }
+
+        if (vendorIds.size) {
+            const { data: vendors, error: vErr } = await supabase
+                .from("vendors")
+                .select("business_id,business_name,address,maps_url")
+                .in("business_id", Array.from(vendorIds));
+
+            if (!vErr && vendors) {
+                const vMap = new Map(vendors.map(v => [String(v.business_id), v]));
+
+                const enriched2 = enriched.map(g => {
+                    const perks = Array.isArray(g.perks) ? g.perks : [];
+                    return {
+                        ...g,
+                        perks: perks.map(p => {
+                            const v = p?.business_id ? vMap.get(String(p.business_id)) : null;
+                            if (!v) return p;
+                            return {
+                                ...p,
+                                vendor: {
+                                    business_id: v.business_id,
+                                    business_name: v.business_name,
+                                    address: v.address,
+                                    maps_url: v.maps_url
+                                }
+                            };
+                        })
+                    };
+                });
+
+                return res.json(enriched2);
+            }
+        }
+
+        return res.json(enriched);
+
+    } catch (err) {
+        console.error('Error fetching grams by owner:', err);
+        return res.status(500).json({ error: 'Server error' });
+    }
 });
+
 
 // -----------------------------------------------------------------------------
 // Get a single Gram by NFC tag (used by NFC / ?tag=ABC123)
