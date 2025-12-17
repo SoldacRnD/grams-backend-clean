@@ -929,6 +929,35 @@ app.post("/api/perks/redeem", async (req, res) => {
         console.log("[redeem] perk found", { type: perk.type, cooldown: perk.cooldown_seconds, metadata: perk.metadata });
 
         const cooldown = Number(perk.cooldown_seconds || 0);
+        // ------------------------
+        // Usage limit (one-time / N-times) check
+        // ------------------------
+        const usageLimit = Number(perk?.metadata?.usage_limit || 0);
+
+        if (usageLimit > 0) {
+            const { count, error: countErr } = await supabase
+                .from("redemptions")
+                .select("id", { count: "exact", head: true })
+                .eq("gram_id", gram_id)
+                .eq("perk_id", perk_id)
+                .eq("redeemer_fingerprint", redeemerKey);
+
+            if (countErr) {
+                console.log("[redeem] usage_limit count error", countErr);
+                return res.status(500).json({ ok: false, error: "Failed to check usage limit" });
+            }
+
+            if ((count || 0) >= usageLimit) {
+                console.log("[redeem] USAGE_LIMIT_REACHED", { usageLimit, used: count });
+                return res.status(409).json({
+                    ok: false,
+                    error: "USAGE_LIMIT_REACHED",
+                    usage_limit: usageLimit,
+                    used_count: count || 0,
+                });
+            }
+        }
+
 
         // cooldown check
         console.log("[redeem] checking cooldown");
@@ -985,13 +1014,11 @@ app.post("/api/perks/redeem", async (req, res) => {
 
             console.log("[redeem] BASIC discount created", { discountNodeId });
 
-            // send them to cart with discount applied
             const shop = process.env.SHOP_DOMAIN || "https://www.soldacstudio.com";
             checkoutUrl = `${shop}/discount/${encodeURIComponent(code)}?redirect=/cart`;
-
         }
 
-        if (perk.type === "shopify_free_product") {
+        else if (perk.type === "shopify_free_product") {
             const variantId = perk.metadata?.variant_id;
             const qty = Number(perk.metadata?.quantity ?? 1);
 
@@ -1004,23 +1031,19 @@ app.post("/api/perks/redeem", async (req, res) => {
                 title,
                 variantIdNumeric: String(variantId),
                 usageLimit: perk.metadata?.usage_limit ?? 1,
-                appliesOncePerCustomer: true, // optional; you can also rely on your redemptions cooldown
+                appliesOncePerCustomer: true,
             });
 
             const shop = process.env.SHOP_DOMAIN || "https://www.soldacstudio.com";
-
-            // ✅ add the variant to cart AND apply discount
             checkoutUrl = `${shop}/cart/${variantId}:${qty}?discount=${encodeURIComponent(code)}`;
         }
-
-        return res.json({ ok: true, redirect_url: checkoutUrl, code });
 
         if (!checkoutUrl) {
             console.log("[redeem] unsupported perk type or checkoutUrl not set", perk.type);
             return res.status(400).json({ ok: false, error: "Unsupported perk type" });
         }
 
-        // record redemption
+        // record redemption (THIS is what enables cooldown + one-time)
         console.log("[redeem] inserting redemption row");
         const { error: insErr } = await supabase.from("redemptions").insert({
             gram_id,
@@ -1037,13 +1060,13 @@ app.post("/api/perks/redeem", async (req, res) => {
 
         console.log("[redeem] SUCCESS", { ms: Date.now() - startedAt, checkoutUrl });
 
-        // ✅ THIS WAS MISSING — without it the request hangs forever
         return res.json({
             ok: true,
             code,
             checkout_url: checkoutUrl,
             redirect_url: checkoutUrl,
         });
+
 
 
     } catch (e) {
@@ -1348,7 +1371,6 @@ app.put("/api/vendor/perks/:id", requireVendor, async (req, res) => {
             enabled: req.body.enabled ?? perk.enabled,
             metadata: req.body.metadata ?? perk.metadata,
         };
-
         // 🔒 Enforce type permissions on UPDATE too (Soldac-only for shopify_*)
         assertVendorAllowedPerkType(businessId, merged.type);
 

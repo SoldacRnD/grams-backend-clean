@@ -209,6 +209,19 @@ class SupabaseDB {
         return updated;
     }
 
+    // Perk Redemption countdown, cooldown, one time
+    async countPerkRedemptions({ gram_id, perk_id, owner_id }) {
+        const { count, error } = await supabase
+            .from("perk_redemptions")
+            .select("id", { count: "exact", head: true })
+            .eq("gram_id", String(gram_id))
+            .eq("perk_id", String(perk_id))
+            .eq("redeemer_customer_id", String(owner_id));
+
+        if (error) throw error;
+        return count || 0;
+    }
+
 
     // Optional legacy helper: append a single perk to existing perks
     async addPerk(gramId, perk) {
