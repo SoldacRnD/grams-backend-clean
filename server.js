@@ -944,8 +944,8 @@ app.post("/api/perks/redeem", async (req, res) => {
                 .select("id", { count: "exact", head: true })
                 .eq("gram_id", gram_id)
                 .eq("perk_id", perk_id)
-                .eq("redeemer_fingerprint", redeemerKey);
-                .eq("status", "consumed")
+                .eq("redeemer_fingerprint", redeemerKey)
+                .eq("status", "consumed");
 
 
             if (countErr) {
