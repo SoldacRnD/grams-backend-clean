@@ -51,6 +51,8 @@
         applyTypeLock(); // 👈 ADD THIS
 
         setStatus("Business ID + Vendor Key saved.");
+        showSoldacLinksIfNeeded();
+
     };
 
 
@@ -91,6 +93,13 @@
         try { data = text ? JSON.parse(text) : {}; } catch (_) { }
         return { ok: res.ok, status: res.status, data, raw: text };
     }
+    function showSoldacLinksIfNeeded() {
+        const bid = (localStorage.getItem("vendor_business_id") || "").trim();
+        const el = document.getElementById("soldacLinks");
+        if (!el) return;
+        el.style.display = (bid === "SOLDAC") ? "flex" : "none";
+    }
+
 
     function renderCreateFields() {
         const t = (createTypeEl.value || "").trim();
@@ -493,5 +502,6 @@
   refreshBtn.onclick = loadPerks;
 
     loadSaved();
-    applyTypeLock(); //
+    applyTypeLock();
+    showSoldacLinksIfNeeded();//
 })();

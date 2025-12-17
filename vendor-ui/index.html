@@ -7,118 +7,132 @@
   <link rel="stylesheet" href="./vendor.css" />
 </head>
 <body>
-  <div class="wrap">
-      <header class="top">
-          <div>
-              <h1>Vendor Perks</h1>
-              <p class="muted">Manage your perks (enable/disable) and keep grams snapshot updated.</p>
-          </div>
+    <div id="soldacLinks" style="display:none; gap:10px;">
+        <a class="btn" href="/producer-ui/">Producer UI</a>
+        <a class="btn" href="/vendor/">Manage</a>
+        <a class="btn" href="/vendor/validate.html">Validate</a>
+    </div>
 
-          <div class="auth">
-              <label class="label">Business ID</label>
-              <div class="row">
-                  <input id="businessId" class="input" placeholder="e.g. Bar11" />
-              </div>
-
-              <label class="label" style="margin-top:10px;">Vendor Key</label>
-              <div class="row">
-                  <input id="vendorSecret" class="input" placeholder="••••••••" />
-                  <button id="saveBusinessId" class="btn">Save</button>
-              </div>
-
-              <div class="row">
-                  <input id="gramId" class="input" placeholder="Optional: filter by gram_id (e.g. G002)" />
-                  <button id="loadPerks" class="btn primary">Load perks</button>
-              </div>
-
-              <p id="status" class="status muted"></p>
-          </div>
-      </header>
-
-    <main>
-        <a class="btn primary" href="/vendor/validate.html">Validate a Gram</a>
-
-        <div class="card" id="createPerkCard">
-            <div class="card-head">
-                <h2>Create perk</h2>
+    <div class="wrap">
+        <header class="top">
+            <div>
+                <h1>Vendor Perks</h1>
+                <p class="muted">Manage your perks (enable/disable) and keep grams snapshot updated.</p>
             </div>
 
-            <div class="form">
-                <div class="grid">
-                    <div>
-                        <label class="label">Gram ID</label>
-                        <input id="createGramId" class="input" placeholder="e.g. G002" />
-                    </div>
-
-                    <div>
-                        <label class="label">Business name (optional)</label>
-                        <input id="createBusinessName" class="input" placeholder="e.g. BarDaEsquina" />
-                    </div>
-
-                    <div>
-                        <label class="label">Type</label>
-                        <select id="createType" class="input">
-                            <option value="discount">discount</option>
-                            <option value="free_item">free_item</option>
-                            <option value="access">access</option>
-
-                            <option value="shopify_discount">shopify_discount</option>
-                            <option value="shopify_free_product">shopify_free_product</option>
-                        </select>
-
-                    </div>
-
-                    <div>
-                        <label class="label">Cooldown (seconds)</label>
-                        <input id="createCooldown" class="input" type="number" placeholder="86400" />
-                    </div>
-                </div>
-
-                <div id="createFields"></div>
-
+            <div class="auth">
+                <label class="label">Business ID</label>
                 <div class="row">
-                    <button id="createPerk" class="btn primary">Create perk</button>
+                    <input id="businessId" class="input" placeholder="e.g. Bar11" />
+                </div>
+
+                <label class="label" style="margin-top:10px;">Vendor Key</label>
+                <div class="row">
+                    <input id="vendorSecret" class="input" placeholder="••••••••" />
+                    <button id="saveBusinessId" class="btn">Save</button>
+                </div>
+                <div style="margin-top:12px;">
+                    <label>Onboarding link (safe)</label>
+                    <input id="vendorOnboardUrl" readonly />
+                    <button id="copyVendorOnboard">Copy</button>
+                </div>
+
+                <div style="margin-top:12px;">
+                    <img id="vendorOnboardQr" alt="Vendor onboarding QR" style="max-width:220px;border:1px solid #ddd;border-radius:12px;padding:8px;" />
+                </div>
+                <div class="row">
+                    <input id="gramId" class="input" placeholder="Optional: filter by gram_id (e.g. G002)" />
+                    <button id="loadPerks" class="btn primary">Load perks</button>
+                </div>
+
+                <p id="status" class="status muted"></p>
+            </div>
+        </header>
+
+        <main>
+            <a class="btn primary" href="/vendor/validate.html">Validate a Gram</a>
+
+            <div class="card" id="createPerkCard">
+                <div class="card-head">
+                    <h2>Create perk</h2>
+                </div>
+
+                <div class="form">
+                    <div class="grid">
+                        <div>
+                            <label class="label">Gram ID</label>
+                            <input id="createGramId" class="input" placeholder="e.g. G002" />
+                        </div>
+
+                        <div>
+                            <label class="label">Business name (optional)</label>
+                            <input id="createBusinessName" class="input" placeholder="e.g. BarDaEsquina" />
+                        </div>
+
+                        <div>
+                            <label class="label">Type</label>
+                            <select id="createType" class="input">
+                                <option value="discount">discount</option>
+                                <option value="free_item">free_item</option>
+                                <option value="access">access</option>
+
+                                <option value="shopify_discount">shopify_discount</option>
+                                <option value="shopify_free_product">shopify_free_product</option>
+                            </select>
+
+                        </div>
+
+                        <div>
+                            <label class="label">Cooldown (seconds)</label>
+                            <input id="createCooldown" class="input" type="number" placeholder="86400" />
+                        </div>
+                    </div>
+
+                    <div id="createFields"></div>
+
+                    <div class="row">
+                        <button id="createPerk" class="btn primary">Create perk</button>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="card">
-            <div class="card-head">
-                <h2>Perks</h2>
-                <div class="right">
-                    <button id="refresh" class="btn">Refresh</button>
+            <div class="card">
+                <div class="card-head">
+                    <h2>Perks</h2>
+                    <div class="right">
+                        <button id="refresh" class="btn">Refresh</button>
+                    </div>
+                </div>
+
+                <div id="tableWrap" class="table-wrap">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Gram</th>
+                                <th>Partner</th>
+                                <th>Type</th>
+                                <th>Details</th>
+                                <th>Cooldown</th>
+                                <th>Status</th>
+                                <th style="width:170px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="perksTbody">
+                            <tr><td colspan="7" class="muted">Load perks to begin…</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            <div id="tableWrap" class="table-wrap">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Gram</th>
-                            <th>Partner</th>
-                            <th>Type</th>
-                            <th>Details</th>
-                            <th>Cooldown</th>
-                            <th>Status</th>
-                            <th style="width:170px;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="perksTbody">
-                        <tr><td colspan="7" class="muted">Load perks to begin…</td></tr>
-                    </tbody>
-                </table>
+            <div class="card">
+                <div class="card-head">
+                    <h2>Debug</h2>
+                </div>
+                <pre id="debug" class="pre muted">—</pre>
             </div>
-        </div>
+        </main>
+    </div>
 
-        <div class="card">
-            <div class="card-head">
-                <h2>Debug</h2>
-            </div>
-            <pre id="debug" class="pre muted">—</pre>
-        </div>
-    </main>
-  </div>
-
-  <script src="./vendor.js"></script>
+    <script src="./vendor.js"></script>
 </body>
 </html>

@@ -25,7 +25,17 @@
     if (!(nfcTagIdEl.value || "").trim()) {
         setStatus("Ready. Tap a Gram NFC tag or paste an nfcTagId.");
     }
+    function getParam(name) {
+        const u = new URL(window.location.href);
+        return u.searchParams.get(name);
+    }
 
+    const bidFromUrl = (getParam("business_id") || "").trim();
+    if (bidFromUrl && businessIdEl) {
+        businessIdEl.value = bidFromUrl;
+        localStorage.setItem("vendor_business_id", bidFromUrl);
+    }
+    if (bidFromUrl && vendorSecretEl) vendorSecretEl.focus();
 
   saveAuthBtn.onclick = () => {
     const bid = (businessIdEl.value || "").trim();
@@ -34,7 +44,9 @@
     if (!sec) return alert("Vendor Key required");
     localStorage.setItem("vendor_business_id", bid);
     localStorage.setItem("vendor_secret", sec);
-    setStatus("Saved.");
+      setStatus("Saved.");
+      showSoldacLinksIfNeeded();
+
   };
 
   async function apiGet(url) {
@@ -69,6 +81,13 @@
     try { data = text ? JSON.parse(text) : {}; } catch (_) {}
     return { ok: res.ok, status: res.status, data, raw: text };
   }
+    function showSoldacLinksIfNeeded() {
+        const bid = (localStorage.getItem("vendor_business_id") || "").trim();
+        const el = document.getElementById("soldacLinks");
+        if (!el) return;
+        el.style.display = (bid === "SOLDAC") ? "flex" : "none";
+    }
+
 
   function msToHuman(ms) {
     const s = Math.ceil(ms / 1000);
@@ -167,7 +186,8 @@
   }
 
   loadBtn.onclick = load;
-  loadSaved();
+    loadSaved();
+    showSoldacLinksIfNeeded();
 
   // Auto-load if tag present in URL
   if ((nfcTagIdEl.value || "").trim()) load();

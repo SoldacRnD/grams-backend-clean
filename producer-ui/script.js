@@ -1421,6 +1421,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             alert("Vendor created. Copy Vendor Key now (it cannot be recovered later).");
         }
+        const onboardUrl = `${location.origin}/vendor/validate.html?business_id=${encodeURIComponent(body.business_id)}`;
+        document.getElementById("vendorOnboardUrl").value = onboardUrl;
+
+        // MVP QR (no deps): uses a public QR image generator.
+        // Safe because it only contains the onboarding URL (no secret).
+        document.getElementById("vendorOnboardQr").src =
+            `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(onboardUrl)}`;
+        document.getElementById("copyVendorOnboard").onclick = async () => {
+            const v = (document.getElementById("vendorOnboardUrl").value || "").trim();
+            if (!v) return alert("No onboarding URL");
+            try { await navigator.clipboard.writeText(v); }
+            catch { document.getElementById("vendorOnboardUrl").select(); document.execCommand("copy"); }
+            alert("Copied.");
+        };
 
         createVendorBtn.onclick = createVendor;
 

@@ -7,48 +7,53 @@
   <link rel="stylesheet" href="./vendor.css" />
 </head>
 <body>
-  <div class="wrap">
-    <header class="top">
-      <div>
-        <h1>Validate Gram</h1>
-        <p class="muted">Tap the physical Gram to this phone to validate perks.</p>
-      </div>
-      <a class="btn" href="/vendor">Manage</a>
-    </header>
-
-    <div class="card">
-      <div class="form">
-          <div class="grid">
-              <div class="auth">
-                  <label class="label">Business ID</label>
-                  <div class="row">
-                      <input id="businessId" class="input" placeholder="e.g. Bar11" />
-                  </div>
-
-                  <label class="label" style="margin-top:10px;">Vendor Key</label>
-                  <div class="row">
-                      <input id="vendorSecret" class="input" placeholder="••••••••" />
-                      <button id="saveAuth" type="button" class="btn">Save</button>
-                  </div>
-
-                  <div class="row">
-                      <input id="gramId" class="input" placeholder="Optional: filter by gram_id (e.g. G002)" />
-                      <button id="loadPerks" class="btn primary">Load perks</button>
-                  </div>
-                  <p id="status" class="status muted"></p>
-              </div>
-          </div>
-
-        <div class="row">
-          <input id="nfcTagId" class="input" placeholder="nfcTagId (auto from URL)" />
-          <button id="load" class="btn primary">Validate</button>
-        </div>
-      </div>
+    <div id="soldacLinks" style="display:none; gap:10px;">
+        <a class="btn" href="/producer-ui/">Producer UI</a>
+        <a class="btn" href="/vendor/">Manage</a>
+        <a class="btn" href="/vendor/validate.html">Validate</a>
     </div>
+    <div class="wrap">
+        <header class="top">
+            <div>
+                <h1>Validate Gram</h1>
+                <p class="muted">Tap the physical Gram to this phone to validate perks.</p>
+            </div>
+            <a class="btn" href="/vendor">Manage</a>
+        </header>
 
-    <div id="result"></div>
+        <div class="card">
+            <div class="form">
+                <div class="grid">
+                    <div class="auth">
+                        <label class="label">Business ID</label>
+                        <div class="row">
+                            <input id="businessId" class="input" placeholder="e.g. Bar11" />
+                        </div>
 
-    <script src="./validate.js"></script>
-  </div>
+                        <label class="label" style="margin-top:10px;">Vendor Key</label>
+                        <div class="row">
+                            <input id="vendorSecret" class="input" placeholder="••••••••" />
+                            <button id="saveAuth" type="button" class="btn">Save</button>
+                        </div>
+
+                        <div class="row">
+                            <input id="gramId" class="input" placeholder="Optional: filter by gram_id (e.g. G002)" />
+                            <button id="loadPerks" class="btn primary">Load perks</button>
+                        </div>
+                        <p id="status" class="status muted"></p>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <input id="nfcTagId" class="input" placeholder="nfcTagId (auto from URL)" />
+                    <button id="load" class="btn primary">Validate</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="result"></div>
+
+        <script src="./validate.js"></script>
+    </div>
 </body>
 </html>
