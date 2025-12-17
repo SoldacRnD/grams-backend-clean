@@ -1547,6 +1547,71 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // --------------------------------------
+    // Producer: Claim Audit Viewer
+    // --------------------------------------
+    (function () {
+        const claimsGramIdEl = document.getElementById("claims-gram-id");
+        const loadClaimsBtn = document.getElementById("load-claims");
+        const claimsOutEl = document.getElementById("claims-out");
+        if (!loadClaimsBtn || !claimsOutEl) return;
+
+        function getAdminKey() {
+            return (localStorage.getItem("producer_admin_key") || "").trim();
+        }
+
+        function getCurrentEditorGramId() {
+            const idEl = document.getElementById("id");
+            return (idEl?.value || "").trim();
+        }
+
+        function fmtRow(r) {
+            const at = r.created_at ? new Date(r.created_at).toISOString() : "";
+            const prev = r.previous_owner_id ? ` prev=${r.previous_owner_id}` : "";
+            const tag = r.nfc_tag_id ? ` tag=${r.nfc_tag_id}` : "";
+            return `${at}  status=${r.status}  owner=${r.owner_id}${prev}${tag}  ip=${r.ip || "-"}  ua=${(r.user_agent || "-").slice(0, 80)}`;
+        }
+
+        async function loadClaims() {
+            const adminKey = getAdminKey();
+            if (!adminKey) return alert("ADMIN_KEY required (save it first).");
+
+            // Auto-fill gram id from editor if empty
+            if (!((claimsGramIdEl.value || "").trim())) {
+                claimsGramIdEl.value = getCurrentEditorGramId();
+            }
+
+            const gramId = (claimsGramIdEl.value || "").trim();
+            if (!gramId) return alert("Gram ID required.");
+
+            claimsOutEl.textContent = "Loading…";
+
+            const res = await fetch(`/api/producer/grams/${encodeURIComponent(gramId)}/claims`, {
+                headers: { "X-Admin-Key": adminKey }
+            });
+
+            const raw = await res.text();
+            let data = {};
+            try { data = raw ? JSON.parse(raw) : {}; } catch (_) { }
+
+            if (!res.ok || !data.ok) {
+                claimsOutEl.textContent = `HTTP ${res.status}\n` + (raw || "");
+                return;
+            }
+
+            const rows = data.claims || [];
+            if (!rows.length) {
+                claimsOutEl.textContent = "No claim history found for this gram.";
+                return;
+            }
+
+            claimsOutEl.textContent = rows.map(fmtRow).join("\n");
+        }
+
+        loadClaimsBtn.addEventListener("click", loadClaims);
+    })();
+
+
     // Save Gram to backend (Supabase)
     if (saveBtn) {
         saveBtn.onclick = async () => {

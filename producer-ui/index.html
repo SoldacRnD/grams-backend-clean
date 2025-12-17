@@ -265,6 +265,23 @@
             </section>
         </main>
     </div>
+    <!-- Claim Audit Section -->
+    <section class="section">
+        <h2>Claim Audit (Producer)</h2>
+
+        <div class="field inline">
+            <div>
+                <label>Gram ID (uses current editor ID)</label>
+                <input id="claims-gram-id" type="text" placeholder="G001 (auto from current)" />
+            </div>
+            <div style="display:flex; align-items:flex-end; gap:10px;">
+                <button id="load-claims">Load Claim History</button>
+            </div>
+        </div>
+
+        <pre id="claims-out" class="muted" style="white-space:pre-wrap;">—</pre>
+    </section>
+
     <!-- Shopify Product Panel -->
     <section class="panel" id="shopify-product-panel">
         <h3>Shopify Product</h3>

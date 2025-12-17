@@ -66,21 +66,49 @@ class SupabaseDB {
         return data;
     }
 
-    async setOwner(gramId, ownerId) {
-        const { data, error } = await supabase
-            .from('grams')
-            .update({ owner_id: String(ownerId) })
-            .eq('id', gramId)
-            .select('*')
-            .single();
+    async claimOwnerIfUnclaimed(gramId, ownerId) {
+        const gid = String(gramId);
+        const oid = String(ownerId);
 
-        if (error) {
-            console.error('Supabase setOwner error:', error);
-            throw error;
+        // Try to claim in ONE atomic update:
+        // Only succeeds if owner_id is effectively empty/unclaimed.
+        const { data: updatedRows, error: upErr } = await supabase
+            .from("grams")
+            .update({ owner_id: oid })
+            .eq("id", gid)
+            // handle legacy bad values too:
+            .or("owner_id.is.null,owner_id.eq.,owner_id.eq.null,owner_id.eq.undefined")
+            .select("*");
+
+        if (upErr) {
+            console.error("Supabase claimOwnerIfUnclaimed update error:", upErr);
+            throw upErr;
         }
 
-        return data;
+        // If we updated exactly one row, claim succeeded
+        if (updatedRows && updatedRows.length === 1) {
+            return { status: "claimed", gram: updatedRows[0] };
+        }
+
+        // Otherwise: it was already claimed (or id not found). Fetch and decide.
+        const { data: gram, error: fetchErr } = await supabase
+            .from("grams")
+            .select("*")
+            .eq("id", gid)
+            .maybeSingle();
+
+        if (fetchErr && fetchErr.code !== "PGRST116") {
+            console.error("Supabase claimOwnerIfUnclaimed fetch error:", fetchErr);
+            throw fetchErr;
+        }
+        if (!gram) return { status: "not_found", gram: null };
+
+        if (String(gram.owner_id) === oid) {
+            return { status: "already_owned", gram };
+        }
+        return { status: "already_claimed", gram };
     }
+
 
     // ----------------------------
     // PERKS NORMALIZATION LAYER (Checkpoint 11.0 Part A)
@@ -438,6 +466,34 @@ class SupabaseDB {
 
         return updated;
     }
+
+    async logGramClaimAttempt(row) {
+        const payload = {
+            gram_id: String(row.gram_id || ""),
+            owner_id: String(row.owner_id || ""),
+            status: String(row.status || "error"),
+            channel: String(row.channel || "nfc"),
+            nfc_tag_id: row.nfc_tag_id ? String(row.nfc_tag_id) : null,
+            previous_owner_id: row.previous_owner_id ? String(row.previous_owner_id) : null,
+            ip: row.ip ? String(row.ip) : null,
+            user_agent: row.user_agent ? String(row.user_agent) : null,
+        };
+
+        const { data, error } = await supabase
+            .from("gram_claims")
+            .insert(payload)
+            .select("*")
+            .single();
+
+        if (error) {
+            console.error("logGramClaimAttempt error:", error);
+            // IMPORTANT: do not throw — audit must never break claiming
+            return null;
+        }
+
+        return data;
+    }
+
 
 
     async getAllGrams() {

@@ -221,6 +221,32 @@ app.get('/api/producer/grams/:gramId/products', async (req, res) => {
     }
 });
 
+// -----------------------------------------------------------------------------
+// Producer-only: View claim audit history for a Gram
+// GET /api/producer/grams/:gramId/claims
+// -----------------------------------------------------------------------------
+app.get("/api/producer/grams/:gramId/claims", requireAdmin, async (req, res) => {
+    try {
+        const gramId = String(req.params.gramId || "").trim();
+        if (!gramId) return res.status(400).json({ ok: false, error: "MISSING_GRAM_ID" });
+
+        const { data, error } = await supabase
+            .from("gram_claims")
+            .select("*")
+            .eq("gram_id", gramId)
+            .order("created_at", { ascending: false })
+            .limit(200);
+
+        if (error) throw error;
+
+        return res.json({ ok: true, claims: data || [] });
+    } catch (err) {
+        console.error("Load gram_claims error:", err);
+        return res.status(500).json({ ok: false, error: "CLAIMS_LOAD_ERROR" });
+    }
+});
+
+
 // POST /api/grams/:gramId/products
 // body: { shopify_product_id, shopify_variant_id }
 app.post('/api/producer/grams/:gramId/products', async (req, res) => {
@@ -1660,42 +1686,92 @@ app.post('/internal/checkpoint', async (req, res) => {
 // Claim a Gram for a given owner (customer)
 // -----------------------------------------------------------------------------
 app.post('/api/grams/claim', async (req, res) => {
-  const { gramId, ownerId } = req.body || {};
-  if (!gramId || !ownerId) {
-    return res.status(400).json({ error: 'gramId and ownerId are required' });
-  }
+    const { gramId, ownerId } = req.body || {};
 
-  try {
-    const gram = await db.getGramById(gramId);
-    if (!gram) {
-      return res.status(404).json({ error: 'Gram not found' });
+    if (!gramId || !ownerId) {
+        return res.status(400).json({ ok: false, error: "gramId and ownerId are required" });
     }
 
-    // Normalize owner value (treat "null", "", etc. as no owner)
-    const rawOwner = gram.owner_id;
-    const hasOwner =
-      rawOwner !== null &&
-      rawOwner !== undefined &&
-      rawOwner !== '' &&
-      rawOwner !== 'null' &&
-      rawOwner !== 'undefined';
+    const out = await db.claimOwnerIfUnclaimed(gramId, ownerId);
 
-    if (hasOwner) {
-      // already claimed
-      if (String(rawOwner) === String(ownerId)) {
-        return res.json({ ok: true, alreadyOwned: true, gram });
-      }
-      return res.status(409).json({ error: 'Gram already claimed by another owner' });
+    if (out.status === "not_found") {
+        return res.status(404).json({ ok: false, error: "GRAM_NOT_FOUND" });
     }
 
-    // Not claimed yet → claim it
-    const updated = await db.setOwner(gramId, ownerId);
-    return res.json({ ok: true, claimed: true, gram: updated });
-  } catch (err) {
-    console.error('Error claiming Gram:', err);
-    return res.status(500).json({ error: 'Server error' });
-  }
+    if (out.status === "claimed") {
+        return res.json({ ok: true, claimed: true, gram: out.gram });
+    }
+
+    if (out.status === "already_owned") {
+        return res.json({ ok: true, alreadyOwned: true, gram: out.gram });
+    }
+
+    if (out.status === "already_claimed") {
+        return res.status(409).json({ ok: false, error: "GRAM_ALREADY_CLAIMED" });
+    }
+    const ip =
+        (req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim() ||
+        req.socket?.remoteAddress ||
+        null;
+
+    const ua = (req.headers["user-agent"] || "").toString() || null;
+
+    // Optional: if you want tag-aware audit later
+    const nfc_tag_id = null;
+
+    // Always log attempt (do not block response if logging fails)
+    await db.logGramClaimAttempt({
+        gram_id: gramId,
+        owner_id: ownerId,
+        status: out.status, // "claimed" | "already_owned" | "already_claimed" | "not_found"
+        channel: "nfc",
+        nfc_tag_id,
+        previous_owner_id: out.gram?.owner_id ? String(out.gram.owner_id) : null,
+        ip,
+        user_agent: ua,
+    });
+
+    return res.status(500).json({ ok: false, error: "UNKNOWN_CLAIM_STATE" });
 });
+// -----------------------------------------------------------------------------
+// Claim by NFC tag (convenience)
+// POST /api/grams/claim-by-tag
+// body: { nfcTagId, ownerId }
+// -----------------------------------------------------------------------------
+app.post('/api/grams/claim-by-tag', async (req, res) => {
+    const { nfcTagId, ownerId } = req.body || {};
+    if (!nfcTagId || !ownerId) {
+        return res.status(400).json({ ok: false, error: 'nfcTagId and ownerId are required' });
+    }
+
+    try {
+        const gram = await db.getGramByTag(nfcTagId);
+        if (!gram) return res.status(404).json({ ok: false, error: 'Gram not found for this tag' });
+
+        // Normalize owner value (treat "null", "", etc. as no owner)
+        const rawOwner = gram.owner_id;
+        const hasOwner =
+            rawOwner !== null &&
+            rawOwner !== undefined &&
+            rawOwner !== '' &&
+            rawOwner !== 'null' &&
+            rawOwner !== 'undefined';
+
+        if (hasOwner) {
+            if (String(rawOwner) === String(ownerId)) {
+                return res.json({ ok: true, alreadyOwned: true, gram });
+            }
+            return res.status(409).json({ ok: false, error: 'Gram already claimed by another owner' });
+        }
+
+        const updated = await db.setOwner(gram.id, ownerId);
+        return res.json({ ok: true, claimed: true, gram: updated });
+    } catch (err) {
+        console.error('Error claiming Gram by tag:', err);
+        return res.status(500).json({ ok: false, error: 'Server error' });
+    }
+});
+
 // -----------------------------------------------------------------------------
 // Notion checkpoint route (internal)
 // -----------------------------------------------------------------------------
