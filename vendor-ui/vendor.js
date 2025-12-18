@@ -25,6 +25,66 @@
     const saveProfileBtn = document.getElementById("saveProfile");
     const mapsPreviewEl = document.getElementById("mapsPreview");
     const profileStatusEl = document.getElementById("profileStatus");
+    const I18N = {
+        en: {
+            vendorPerks: "Vendor Perks",
+            manageYourPerks: "Manage your perks (enable/disable) and keep grams snapshot updated.",
+            businessId: "Business ID",
+            vendorKey: "Vendor Key",
+            loadPerks: "Load perks",
+            save: "Save",
+            createPerk: "Create perk",
+            refresh: "Refresh",
+            validate: "Validate a Gram",
+            statusSaved: "Saved.",
+        },
+        pt: {
+            vendorPerks: "Beneficios do Parceiro",
+            manageYourPerks: "Gere os teus beneficios (ativar/desativar) e mantém o snapshot das Grams atualizado.",
+            businessId: "ID do Negócio",
+            vendorKey: "Chave do Parceiro",
+            loadPerks: "Carregar os beneficios",
+            save: "Guardar",
+            createPerk: "Criar beneficio",
+            refresh: "Atualizar",
+            validate: "Validar uma Gram",
+            statusSaved: "Guardado.",
+        }
+    };
+
+    function getLang() {
+        return localStorage.getItem("vendor_lang") || "en";
+    }
+    function setLang(lang) {
+        localStorage.setItem("vendor_lang", lang);
+        applyLang();
+    }
+    function t(key) {
+        const lang = getLang();
+        return (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key;
+    }
+    function applyLang() {
+        // Headline + top copy
+        const h1 = document.querySelector("h1");
+        if (h1) h1.textContent = t("vendorPerks");
+
+        const topMuted = document.querySelector("header.top p.muted");
+        if (topMuted) topMuted.textContent = t("manageYourPerks");
+
+        // Buttons (by id if present)
+        const loadBtn = document.getElementById("loadPerks");
+        if (loadBtn) loadBtn.textContent = t("loadPerks");
+
+        const refreshBtn = document.getElementById("refresh");
+        if (refreshBtn) refreshBtn.textContent = t("refresh");
+
+        const saveBtn = document.getElementById("saveBusinessId");
+        if (saveBtn) saveBtn.textContent = t("save");
+
+        const createBtn = document.getElementById("createPerk");
+        if (createBtn) createBtn.textContent = t("createPerk");
+    }
+
 
     function setProfileStatus(msg) {
         if (profileStatusEl) profileStatusEl.textContent = msg || "";
@@ -587,5 +647,9 @@
     loadSaved();
     applyTypeLock();
     loadProfile();
-    showSoldacLinksIfNeeded();//
+    showSoldacLinksIfNeeded();
+    document.getElementById("langEN")?.addEventListener("click", () => setLang("en"));
+    document.getElementById("langPT")?.addEventListener("click", () => setLang("pt"));
+    applyLang();
+//
 })();

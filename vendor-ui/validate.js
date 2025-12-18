@@ -7,8 +7,56 @@
   const loadBtn = $("load");
   const statusEl = $("status");
   const resultEl = $("result");
-
   const API_BASE = "";
+    const I18N = {
+        en: {
+            title: "Validate Gram",
+            subtitle: "Tap the physical Gram to this phone to validate perks.",
+            save: "Save",
+            validate: "Validate",
+            approving: "Approving…",
+            validating: "Validating…",
+            ready: "Ready.",
+            approve: "Approve",
+            cooldown: "On cooldown",
+            noPerks: "No perks for this vendor",
+            noPerksDesc: "This Gram has no redeemable perks for your business."
+        },
+        pt: {
+            title: "Validar Gram",
+            subtitle: "Encosta a Gram física ao telemóvel para validar perks.",
+            save: "Guardar",
+            validate: "Validar",
+            approving: "A aprovar…",
+            validating: "A validar…",
+            ready: "Pronto.",
+            approve: "Aprovar",
+            cooldown: "Em cooldown",
+            noPerks: "Sem perks para este parceiro",
+            noPerksDesc: "Esta Gram não tem perks resgatáveis para o teu negócio."
+        }
+    };
+
+    function getLang() { return localStorage.getItem("vendor_lang") || "en"; }
+    function setLang(lang) { localStorage.setItem("vendor_lang", lang); applyLang(); }
+    function t(key) {
+        const lang = getLang();
+        return (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key;
+    }
+
+    function applyLang() {
+        const h1 = document.querySelector("h1");
+        if (h1) h1.textContent = t("title");
+        const p = document.querySelector("header.top p.muted");
+        if (p) p.textContent = t("subtitle");
+
+        document.getElementById("saveAuth")?.textContent && (document.getElementById("saveAuth").textContent = t("save"));
+        document.getElementById("load")?.textContent && (document.getElementById("load").textContent = t("validate"));
+    }
+
+    document.getElementById("langEN")?.addEventListener("click", () => setLang("en"));
+    document.getElementById("langPT")?.addEventListener("click", () => setLang("pt"));
+    applyLang();
 
   function qs(key) {
     const p = new URLSearchParams(location.search);
@@ -17,14 +65,25 @@
 
   function setStatus(s) { statusEl.textContent = s || ""; }
 
-  function loadSaved() {
-    businessIdEl.value = localStorage.getItem("vendor_business_id") || "";
-    vendorSecretEl.value = localStorage.getItem("vendor_secret") || "";
-    nfcTagIdEl.value = qs("nfcTagId") || qs("tag") || "";
+    function loadSaved() {
+        businessIdEl.value = localStorage.getItem("vendor_business_id") || "";
+        vendorSecretEl.value = localStorage.getItem("vendor_secret") || "";
+
+        // Pull tag from URL
+        nfcTagIdEl.value = qs("nfcTagId") || qs("tag") || "";
+
+        // If business_id is passed, use it
+        const bidFromUrl = (qs("business_id") || "").trim();
+        if (bidFromUrl) {
+            businessIdEl.value = bidFromUrl;
+            localStorage.setItem("vendor_business_id", bidFromUrl);
+        }
+
+        if (!(nfcTagIdEl.value || "").trim()) {
+            setStatus("Ready. Tap a Gram NFC tag or paste an nfcTagId.");
+        }
     }
-    if (!(nfcTagIdEl.value || "").trim()) {
-        setStatus("Ready. Tap a Gram NFC tag or paste an nfcTagId.");
-    }
+
     function getParam(name) {
         const u = new URL(window.location.href);
         return u.searchParams.get(name);
@@ -101,13 +160,18 @@
 
   function renderValidated(payload) {
     const g = payload.gram;
-    const perks = payload.perks || [];
+      const perks = payload.perks || [];
+      const label = state === "available"
+          ? t("approve")
+          : `${t("cooldown")} (${msToHuman(p.cooldown_remaining_ms)})`;
 
     if (!perks.length) {
       resultEl.innerHTML = `
         <div class="card">
           <div class="form">
             <h2>No perks for this vendor</h2>
+            <h2>${t("noPerks")}</h2>
+            <p class="muted">${t("noPerksDesc")}</p>
             <p class="muted">This Gram has no redeemable perks for your business.</p>
           </div>
         </div>
@@ -128,25 +192,34 @@
 
           <div style="margin-top:12px;">
             ${perks.map(p => {
-              const state = p.state;
-              const disabled = state !== "available";
-              const label = state === "available"
-                ? "Approve"
-                : `On cooldown (${msToHuman(p.cooldown_remaining_ms)})`;
+                const state = p.state;
+                const disabled = state !== "available";
+                const label = state === "available"
+                    ? "Approve"
+                    : `On cooldown (${msToHuman(p.cooldown_remaining_ms)})`;
 
-              return `
-                <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
-                <div>
-                   <strong>${p.business_name || p.business_id}</strong>
-                   <div class="muted" style="margin-top:4px;">${p.type}</div>
-                </div>
-                 <div class="muted" style="text-align:right;">
-                 ${p.cooldown_seconds ? `Cooldown: ${p.cooldown_seconds}s` : ""}
-                 </div>
-               </div>
+                return `
+    <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin:10px 0;">
+      <div>
+        <strong>${p.business_name || p.business_id}</strong>
+        <div class="muted" style="margin-top:4px;">${p.type}</div>
+        ${p.cooldown_seconds ? `<div class="muted">Cooldown: ${p.cooldown_seconds}s</div>` : ``}
+      </div>
 
-              `;
+      <div style="text-align:right;">
+        <button
+          class="btn primary"
+          data-approve="${p.id}"
+          ${disabled ? "disabled" : ""}
+          title="${disabled ? "This perk is not currently available." : "Approve redemption"}"
+        >
+          ${label}
+        </button>
+      </div>
+    </div>
+  `;
             }).join("")}
+
           </div>
         </div>
       </div>
