@@ -52,7 +52,7 @@ async function requireVendor(req, res, next) {
 
         if (!business_id) return res.status(401).json({ ok: false, error: "MISSING_BUSINESS_ID" });
         if (!vendor_secret) return res.status(401).json({ ok: false, error: "MISSING_VENDOR_SECRET" });
-        if (!vendor.secret_hash) {
+        {
             return res.status(403).json({ ok: false, error: "VENDOR_NOT_ONBOARDED" });
         }
 
@@ -65,6 +65,10 @@ async function requireVendor(req, res, next) {
 
         if (error) throw error;
         if (!vendor) return res.status(401).json({ ok: false, error: "VENDOR_NOT_FOUND" });
+
+        if (!vendor.secret_hash) {
+            return res.status(403).json({ ok: false, error: "VENDOR_NOT_ONBOARDED" });
+        }
 
         const expected = vendor.secret_hash;
         const got = hashVendorSecret(vendor_secret);
@@ -1407,6 +1411,70 @@ app.get("/api/vendor/perks", requireVendor, async (req, res) => {
         return res.status(500).json({ ok: false, error: "VENDOR_PERKS_LIST_ERROR" });
     }
 });
+// Vendor profile (read)
+app.get("/api/vendor/profile", requireVendor, async (req, res) => {
+    try {
+        const v = req.vendor;
+        return res.json({
+            ok: true,
+            vendor: {
+                business_id: v.business_id,
+                business_name: v.business_name,
+                address: v.address,
+                maps_url: v.maps_url,
+                lat: v.lat,
+                lng: v.lng,
+            }
+        });
+    } catch (err) {
+        console.error("GET /api/vendor/profile error:", err);
+        return res.status(500).json({ ok: false, error: "VENDOR_PROFILE_READ_ERROR" });
+    }
+});
+function cleanMapsUrl(u) {
+    const s = String(u || "").trim();
+    if (!s) return null;
+    // allow only http(s) to avoid javascript: and other unsafe schemes
+    if (!/^https?:\/\//i.test(s)) return null;
+    return s;
+}
+
+app.put("/api/vendor/profile", requireVendor, async (req, res) => {
+    try {
+        const business_id = req.vendor.business_id;
+
+        // allow only these fields:
+        const business_name = String(req.body?.business_name || "").trim() || null;
+        const address = String(req.body?.address || "").trim() || null;
+        const maps_url = cleanMapsUrl(req.body?.maps_url);
+
+        // optional lat/lng if you want now; keep it simple otherwise:
+        // const lat = req.body?.lat != null ? Number(req.body.lat) : null;
+        // const lng = req.body?.lng != null ? Number(req.body.lng) : null;
+
+        const patch = {
+            business_name,
+            address,
+            maps_url,
+            updated_at: new Date().toISOString(),
+        };
+
+        const { data: updated, error } = await supabase
+            .from("vendors")
+            .update(patch)
+            .eq("business_id", business_id)
+            .select("business_id,business_name,address,maps_url,lat,lng,updated_at")
+            .single();
+
+        if (error) throw error;
+
+        return res.json({ ok: true, vendor: updated });
+    } catch (err) {
+        console.error("PUT /api/vendor/profile error:", err);
+        return res.status(500).json({ ok: false, error: "VENDOR_PROFILE_UPDATE_ERROR" });
+    }
+});
+
 
 // POST /api/vendor/perks/:id/enable
 // body: { business_id: "Bar11" }

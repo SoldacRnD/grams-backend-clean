@@ -19,6 +19,36 @@
     const createFieldsEl = document.getElementById("createFields");
     const createBtn = document.getElementById("createPerk");
     const createPerkCardEl = document.getElementById("createPerkCard");
+    const profileNameEl = document.getElementById("profileName");
+    const profileAddressEl = document.getElementById("profileAddress");
+    const profileMapsUrlEl = document.getElementById("profileMapsUrl");
+    const saveProfileBtn = document.getElementById("saveProfile");
+    const mapsPreviewEl = document.getElementById("mapsPreview");
+    const profileStatusEl = document.getElementById("profileStatus");
+
+    function setProfileStatus(msg) {
+        if (profileStatusEl) profileStatusEl.textContent = msg || "";
+    }
+
+    async function apiPut(url, body) {
+        const bid = (businessIdEl.value || localStorage.getItem("vendor_business_id") || "").trim();
+        const sec = (vendorSecretEl?.value || localStorage.getItem("vendor_secret") || "").trim();
+
+        const res = await fetch(url, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Business-Id": bid,
+                "X-Vendor-Secret": sec,
+            },
+            body: JSON.stringify(body || {}),
+        });
+
+        const text = await res.text();
+        let data = {};
+        try { data = text ? JSON.parse(text) : {}; } catch (_) { }
+        return { ok: res.ok, status: res.status, data, raw: text };
+    }
 
 
 
@@ -39,22 +69,73 @@
     }
 
 
-    saveBusinessBtn.onclick = () => {
-        const bid = (businessIdEl.value || "").trim();
-        const sec = (vendorSecretEl?.value || "").trim();
+    saveBusinessBtn.onclick = async () => {
+    const bid = (businessIdEl.value || "").trim();
+    const sec = (vendorSecretEl?.value || "").trim();
 
-        if (!bid) return alert("Business ID required");
-        if (!sec) return alert("Vendor Key required");
+    if (!bid) return alert("Business ID required");
+    if (!sec) return alert("Vendor Key required");
 
-        localStorage.setItem("vendor_business_id", bid);
-        localStorage.setItem("vendor_secret", sec);
-        applyTypeLock(); // 👈 ADD THIS
+    localStorage.setItem("vendor_business_id", bid);
+    localStorage.setItem("vendor_secret", sec);
+    applyTypeLock();
 
-        setStatus("Business ID + Vendor Key saved.");
-        showSoldacLinksIfNeeded();
+    setStatus("Business ID + Vendor Key saved.");
+    await loadProfile();
+    showSoldacLinksIfNeeded();
+};
 
-    };
+    async function loadProfile() {
+        if (!profileNameEl) return; // card not present
 
+        setProfileStatus("Loading profile…");
+        const out = await apiGet(`${API_BASE}/api/vendor/profile`);
+
+        if (!out.ok || !out.data?.ok) {
+            setProfileStatus(`Failed (${out.status})`);
+            return;
+        }
+
+        const v = out.data.vendor || {};
+        profileNameEl.value = v.business_name || "";
+        profileAddressEl.value = v.address || "";
+        profileMapsUrlEl.value = v.maps_url || "";
+
+        const maps = (v.maps_url || "").trim();
+        if (mapsPreviewEl) {
+            mapsPreviewEl.style.display = maps ? "" : "none";
+            mapsPreviewEl.href = maps || "#";
+        }
+
+        setProfileStatus("Profile loaded.");
+    }
+
+    async function saveProfile() {
+        const payload = {
+            business_name: (profileNameEl.value || "").trim() || null,
+            address: (profileAddressEl.value || "").trim() || null,
+            maps_url: (profileMapsUrlEl.value || "").trim() || null,
+        };
+
+        setProfileStatus("Saving…");
+        const out = await apiPut(`${API_BASE}/api/vendor/profile`, payload);
+
+        if (!out.ok || !out.data?.ok) {
+            setProfileStatus(`Save failed (${out.status})`);
+            alert(out.data?.error || "Save failed");
+            return;
+        }
+
+        const v = out.data.vendor || {};
+        const maps = (v.maps_url || "").trim();
+        if (mapsPreviewEl) {
+            mapsPreviewEl.style.display = maps ? "" : "none";
+            mapsPreviewEl.href = maps || "#";
+        }
+
+        setProfileStatus("Saved ✅");
+    }
+    if (saveProfileBtn) saveProfileBtn.onclick = saveProfile;
 
     async function apiGet(url) {
         const bid = (businessIdEl.value || localStorage.getItem("vendor_business_id") || "").trim();
@@ -484,7 +565,9 @@
 
     if (!business_id) return alert("Business ID required");
 
-    setStatus("Loading perks…");
+      setStatus("Loading perks…");
+      let url = `${API_BASE}/api/vendor/perks?business_id=${encodeURIComponent(business_id)}`;
+      if (gram_id) url += `&gram_id=${encodeURIComponent(gram_id)}`;
     const out = await apiGet(url);
 
     debugEl.textContent = `HTTP ${out.status}\n` + (out.raw || "");
@@ -503,5 +586,6 @@
 
     loadSaved();
     applyTypeLock();
+    loadProfile();
     showSoldacLinksIfNeeded();//
 })();
