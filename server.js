@@ -115,7 +115,8 @@ function rawBodySaver(req, res, buf) {
     req.rawBody = buf;
 }
 
-app.use(express.json({ type: "*/*", verify: rawBodySaver }));
+app.use(express.json({ verify: rawBodySaver })); // default type: application/json
+app.use(express.json({ limit: "2mb", verify: rawBodySaver }));
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // Import from /notion because you have no /routes folder
