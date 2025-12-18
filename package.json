@@ -17,6 +17,7 @@
     "form-data": "^4.0.5",
     "multer": "^2.0.2",
     "node-fetch": "^2.7.0",
-    "openai": "^6.10.0"
+    "openai": "^6.10.0",
+    "qrcode": "^1.5.4"
   }
 }

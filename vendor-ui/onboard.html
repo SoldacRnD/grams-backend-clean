@@ -1,0 +1,134 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Vendor Onboarding</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; max-width: 720px; }
+    .card { border: 1px solid rgba(0,0,0,0.12); border-radius: 12px; padding: 16px; }
+    .row { display:flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+    .muted { opacity: 0.75; }
+    input { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.25); }
+    button { padding: 10px 12px; border-radius: 10px; border: 1px solid #000; background: #fff; cursor: pointer; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .err { color: #b00020; white-space: pre-wrap; }
+    a { color: inherit; }
+  </style>
+</head>
+<body>
+  <h1>Vendor Onboarding</h1>
+  <p class="muted">Confirm your business details, then paste your Vendor Secret to activate this device.</p>
+
+  <div class="card" id="card">
+    <p>Loading…</p>
+  </div>
+
+  <script>
+    (function() {
+      const BACKEND_URL = window.location.origin; // served by same backend domain
+      const card = document.getElementById("card");
+
+      function qp(k) {
+        return new URLSearchParams(window.location.search).get(k);
+      }
+
+      const business_id = (qp("business_id") || "").trim();
+      const token = (qp("token") || "").trim();
+
+      if (!business_id || !token) {
+        card.innerHTML = `<div class="err">Missing business_id or token in URL.</div>`;
+        return;
+      }
+
+      function saveVendorCreds(businessId, vendorSecret) {
+        localStorage.setItem("vendor_business_id", businessId);
+        localStorage.setItem("vendor_secret", vendorSecret);
+      }
+
+      async function loadVendorInfo() {
+        const url = `${BACKEND_URL}/api/vendor/onboard?business_id=${encodeURIComponent(business_id)}&token=${encodeURIComponent(token)}`;
+        const res = await fetch(url);
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || !data.ok) {
+          card.innerHTML = `<div class="err">${(data && data.error) ? data.error : ("Failed ("+res.status+")")}</div>`;
+          return;
+        }
+
+        const v = data.vendor || {};
+        const name = v.business_name || v.business_id || business_id;
+
+        card.innerHTML = `
+          <div class="row">
+            <div>
+              <div><strong>${name}</strong></div>
+              ${v.address ? `<div class="muted">${v.address}</div>` : ``}
+            </div>
+            ${v.maps_url ? `<a href="${v.maps_url}" target="_blank" rel="noopener">Directions</a>` : ``}
+          </div>
+
+          <hr style="border:none;border-top:1px solid rgba(0,0,0,0.1); margin: 14px 0;" />
+
+          <label class="muted" for="secret">Vendor Secret</label>
+          <input id="secret" placeholder="Paste your vendor secret" autocomplete="off" />
+
+          <div style="height: 10px;"></div>
+
+          <div class="row">
+            <button id="activateBtn">Activate this device</button>
+            <span class="muted" id="status"></span>
+          </div>
+
+          <div class="err" id="err" style="margin-top:10px;"></div>
+        `;
+
+        const secretEl = document.getElementById("secret");
+        const btn = document.getElementById("activateBtn");
+        const status = document.getElementById("status");
+        const err = document.getElementById("err");
+
+        btn.onclick = async () => {
+          err.textContent = "";
+          const vendor_secret = (secretEl.value || "").trim();
+          if (!vendor_secret) {
+            err.textContent = "Please paste your Vendor Secret.";
+            return;
+          }
+
+          btn.disabled = true;
+          status.textContent = "Verifying…";
+
+          try {
+            const res2 = await fetch(`${BACKEND_URL}/api/vendor/onboard/complete`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ business_id, token })
+            });
+
+            const data2 = await res2.json().catch(() => ({}));
+            if (!res2.ok || !data2.ok) {
+              err.textContent = (data2 && data2.error) ? data2.error : `Failed (${res2.status})`;
+              btn.disabled = false;
+              status.textContent = "";
+              return;
+            }
+
+              const vendor_secret = (data2.vendor_secret || "").trim();
+              if (!vendor_secret) { err.textContent = "No vendor_secret returned."; return; }
+              localStorage.setItem("vendor_business_id", business_id);
+              localStorage.setItem("vendor_secret", vendor_secret);
+              window.location.href = "/vendor/";
+          } catch (e) {
+            err.textContent = "Network error: " + (e && e.message ? e.message : String(e));
+            btn.disabled = false;
+            status.textContent = "";
+          }
+        };
+      }
+
+      loadVendorInfo();
+    })();
+  </script>
+</body>
+</html>
