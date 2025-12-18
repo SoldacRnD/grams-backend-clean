@@ -289,7 +289,7 @@ app.get('/api/grams', async (req, res) => {
         });
         // Collect vendor ids from perks
         const vendorIds = new Set();
-        for (const g of grams || []) {
+        for (const g of enriched || []) {
             const perks = Array.isArray(g.perks) ? g.perks : [];
             for (const p of perks) {
                 if (p?.business_id) vendorIds.add(String(p.business_id));
