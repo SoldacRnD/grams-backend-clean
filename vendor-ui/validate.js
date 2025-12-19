@@ -69,32 +69,18 @@
         businessIdEl.value = localStorage.getItem("vendor_business_id") || "";
         vendorSecretEl.value = localStorage.getItem("vendor_secret") || "";
 
-        // Pull tag from URL
+        // Accept both ?tag= and ?nfcTagId=
         nfcTagIdEl.value = qs("nfcTagId") || qs("tag") || "";
 
-        // If business_id is passed, use it
+        // Accept ?business_id=
         const bidFromUrl = (qs("business_id") || "").trim();
         if (bidFromUrl) {
             businessIdEl.value = bidFromUrl;
             localStorage.setItem("vendor_business_id", bidFromUrl);
         }
 
-        if (!(nfcTagIdEl.value || "").trim()) {
-            setStatus("Ready. Tap a Gram NFC tag or paste an nfcTagId.");
-        }
     }
-
-    function getParam(name) {
-        const u = new URL(window.location.href);
-        return u.searchParams.get(name);
-    }
-
-    const bidFromUrl = (getParam("business_id") || "").trim();
-    if (bidFromUrl && businessIdEl) {
-        businessIdEl.value = bidFromUrl;
-        localStorage.setItem("vendor_business_id", bidFromUrl);
-    }
-    if (bidFromUrl && vendorSecretEl) vendorSecretEl.focus();
+    
 
   saveAuthBtn.onclick = () => {
     const bid = (businessIdEl.value || "").trim();
@@ -261,7 +247,6 @@
   loadBtn.onclick = load;
     loadSaved();
     showSoldacLinksIfNeeded();
-
-  // Auto-load if tag present in URL
-  if ((nfcTagIdEl.value || "").trim()) load();
+      // Auto-load if tag present in URL
+    if ((nfcTagIdEl.value || "").trim()) load("Validating…");
 })();
