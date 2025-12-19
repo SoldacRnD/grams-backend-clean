@@ -1415,8 +1415,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             secretOutEl.value = data.vendor_secret || "";
             // ✅ Safe onboarding URL (no secret in it)
-            const onboardUrl = `${location.origin}/vendor/validate.html?business_id=${encodeURIComponent(business_id)}`;
-
+            const onboardUrl = data.onboarding_url; // returned by backend
             const onboardUrlEl = document.getElementById("vendorOnboardUrl");
             if (onboardUrlEl) onboardUrlEl.value = onboardUrl;
 

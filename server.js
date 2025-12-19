@@ -145,7 +145,7 @@ app.get("/api/vendor/onboard", async (req, res) => {
 
         const { data: vendor, error } = await supabase
             .from("vendors")
-            .select("business_id,business_name,address,maps_url,lat,lng,onboarding_token_hash")
+            .select("business_id,business_name,address,maps_url,lat,lng,onboarding_token_hash,secret_hash")
             .eq("business_id", business_id)
             .maybeSingle();
 
@@ -153,9 +153,11 @@ app.get("/api/vendor/onboard", async (req, res) => {
         if (!vendor) return res.status(404).json({ ok: false, error: "VENDOR_NOT_FOUND" });
 
         if (!vendor.onboarding_token_hash) {
+            if (vendor.secret_hash) {
+                return res.status(409).json({ ok: false, error: "ALREADY_ONBOARDED" });
+            }
             return res.status(410).json({ ok: false, error: "ONBOARDING_LINK_EXPIRED" });
         }
-
         if (!safeEqual(vendor.onboarding_token_hash, token_hash)) {
             return res.status(401).json({ ok: false, error: "INVALID_ONBOARDING_TOKEN" });
         }
@@ -187,15 +189,22 @@ app.post("/api/vendor/onboard/complete", async (req, res) => {
 
         const token_hash = hashOnboardingToken(token);
 
-        const { data: vendor, error } = await supabase
+        // 1) Fetch vendor first (read-only)
+        const { data: vendor, error: fetchErr } = await supabase
             .from("vendors")
             .select("business_id,business_name,onboarding_token_hash,secret_hash")
             .eq("business_id", business_id)
             .maybeSingle();
 
-        if (error) throw error;
+        if (fetchErr) throw fetchErr;
         if (!vendor) return res.status(404).json({ ok: false, error: "VENDOR_NOT_FOUND" });
 
+        // 2) If already onboarded, do NOT mint a new secret
+        if (vendor.secret_hash) {
+            return res.status(409).json({ ok: false, error: "ALREADY_ONBOARDED" });
+        }
+
+        // 3) Token must exist + match
         if (!vendor.onboarding_token_hash) {
             return res.status(410).json({ ok: false, error: "ONBOARDING_LINK_EXPIRED" });
         }
@@ -203,16 +212,12 @@ app.post("/api/vendor/onboard/complete", async (req, res) => {
             return res.status(401).json({ ok: false, error: "INVALID_ONBOARDING_TOKEN" });
         }
 
-        // If already onboarded, do NOT mint a new secret automatically
-        if (vendor.secret_hash) {
-            return res.status(409).json({ ok: false, error: "ALREADY_ONBOARDED" });
-        }
-
-        // ✅ AUTO-SECRET: mint now, store hash only
+        // 4) Mint vendor secret and store hash only
         const vendor_secret = makeVendorSecret();
         const secret_hash = hashVendorSecret(vendor_secret);
 
-        await supabase
+        // 5) Persist once, and CHECK error
+        const { error: upErr } = await supabase
             .from("vendors")
             .update({
                 secret_hash,
@@ -221,6 +226,8 @@ app.post("/api/vendor/onboard/complete", async (req, res) => {
                 updated_at: new Date().toISOString(),
             })
             .eq("business_id", business_id);
+
+        if (upErr) throw upErr;
 
         return res.json({
             ok: true,
@@ -233,6 +240,7 @@ app.post("/api/vendor/onboard/complete", async (req, res) => {
         return res.status(500).json({ ok: false, error: "ONBOARD_COMPLETE_ERROR" });
     }
 });
+
 
 
 
