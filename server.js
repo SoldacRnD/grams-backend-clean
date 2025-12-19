@@ -1391,6 +1391,65 @@ function requireBusinessId(req) {
 
     return businessId || null;
 }
+function cleanHttpUrl(u) {
+    const s = String(u || "").trim();
+    if (!s) return null;
+    if (!/^https?:\/\//i.test(s)) return null;
+    return s;
+}
+
+// Get /api/vendor/profile
+app.get("/api/vendor/profile", requireVendor, async (req, res) => {
+    try {
+        const v = req.vendor;
+        return res.json({
+            ok: true,
+            vendor: {
+                business_id: v.business_id,
+                business_name: v.business_name,
+                address: v.address,
+                maps_url: v.maps_url,
+                lat: v.lat,
+                lng: v.lng,
+            }
+        });
+    } catch (err) {
+        console.error("GET /api/vendor/profile error:", err);
+        return res.status(500).json({ ok: false, error: "VENDOR_PROFILE_READ_ERROR" });
+    }
+});
+// PUT /api/vendor/profile
+app.put("/api/vendor/profile", requireVendor, async (req, res) => {
+    try {
+        const business_id = req.vendor.business_id;
+
+        const business_name = String(req.body?.business_name || "").trim() || null;
+        const address = String(req.body?.address || "").trim() || null;
+        const maps_url = cleanHttpUrl(req.body?.maps_url);
+
+        const patch = {
+            business_name,
+            address,
+            maps_url,
+            updated_at: new Date().toISOString(),
+        };
+
+        const { data: updated, error } = await supabase
+            .from("vendors")
+            .update(patch)
+            .eq("business_id", business_id)
+            .select("business_id,business_name,address,maps_url,lat,lng,updated_at")
+            .single();
+
+        if (error) throw error;
+
+        return res.json({ ok: true, vendor: updated });
+    } catch (err) {
+        console.error("PUT /api/vendor/profile error:", err);
+        return res.status(500).json({ ok: false, error: "VENDOR_PROFILE_UPDATE_ERROR" });
+    }
+});
+
 
 // GET /api/vendor/perks?business_id=Bar11
 // Optional: &gram_id=G002  (to narrow)
