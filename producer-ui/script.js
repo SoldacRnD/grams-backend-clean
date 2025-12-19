@@ -1413,34 +1413,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            secretOutEl.value = data.vendor_secret || "";
-            // ✅ Safe onboarding URL (no secret in it)
-            const onboardUrl = data.onboarding_url; // returned by backend
+            // New model: secret is minted on /api/vendor/onboard/complete (one-time)
+            // Vendor create returns onboarding URL + QR
+            secretOutEl.value = ""; // no secret at creation anymore
+
+            const onboardUrl = data.onboarding_url || "";
             const onboardUrlEl = document.getElementById("vendorOnboardUrl");
             if (onboardUrlEl) onboardUrlEl.value = onboardUrl;
 
+            // Prefer the SVG the backend already generated (no 3rd-party QR)
+            const qrWrap = document.getElementById("vendorOnboardQrWrap"); // create a div for this
+            if (qrWrap && data.onboarding_qr_svg) {
+                qrWrap.innerHTML = data.onboarding_qr_svg;
+            }
+
+            // If you keep the <img> QR approach, use onboardUrl:
             const qrImg = document.getElementById("vendorOnboardQr");
-            if (qrImg) {
+            if (qrImg && onboardUrl) {
                 qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(onboardUrl)}`;
             }
 
-            const copyOnboardBtn = document.getElementById("copyVendorOnboard");
-            if (copyOnboardBtn) {
-                copyOnboardBtn.onclick = async () => {
-                    try { await navigator.clipboard.writeText(onboardUrl); }
-                    catch {
-                        if (onboardUrlEl) { onboardUrlEl.select(); document.execCommand("copy"); }
-                    }
-                    alert("Copied.");
-                };
-            }
-
-            if (!secretOutEl.value) {
-                alert("Vendor created, but no vendor_secret returned. Check server endpoint.");
-                return;
-            }
-
-            alert("Vendor created. Copy Vendor Key now (it cannot be recovered later).");
+            alert("Vendor created. Send the onboarding link/QR to the vendor to activate the device.");
         }
         
 

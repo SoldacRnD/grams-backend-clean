@@ -18,7 +18,7 @@
 </head>
 <body>
   <h1>Vendor Onboarding</h1>
-  <p class="muted">Confirm your business details, then paste your Vendor Secret to activate this device.</p>
+  <p class="muted">Confirm your business details, then click Activate to generate and store your Vendor Secret on this device.</p>
 
   <div class="card" id="card">
     <p>Loading…</p>
@@ -88,43 +88,44 @@
         const status = document.getElementById("status");
         const err = document.getElementById("err");
 
-        btn.onclick = async () => {
-          err.textContent = "";
-          const vendor_secret = (secretEl.value || "").trim();
-          if (!vendor_secret) {
-            err.textContent = "Please paste your Vendor Secret.";
-            return;
-          }
+          btn.onclick = async () => {
+              err.textContent = "";
+              btn.disabled = true;
+              status.textContent = "Activating…";
 
-          btn.disabled = true;
-          status.textContent = "Verifying…";
+              try {
+                  const res2 = await fetch(`${BACKEND_URL}/api/vendor/onboard/complete`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ business_id, token })
+                  });
 
-          try {
-            const res2 = await fetch(`${BACKEND_URL}/api/vendor/onboard/complete`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ business_id, token })
-            });
+                  const data2 = await res2.json().catch(() => ({}));
+                  if (!res2.ok || !data2.ok) {
+                      err.textContent = (data2 && data2.error) ? data2.error : `Failed (${res2.status})`;
+                      btn.disabled = false;
+                      status.textContent = "";
+                      return;
+                  }
 
-            const data2 = await res2.json().catch(() => ({}));
-            if (!res2.ok || !data2.ok) {
-              err.textContent = (data2 && data2.error) ? data2.error : `Failed (${res2.status})`;
-              btn.disabled = false;
-              status.textContent = "";
-              return;
-            }
+                  const vendor_secret = (data2.vendor_secret || "").trim();
+                  if (!vendor_secret) {
+                      err.textContent = "No vendor_secret returned.";
+                      btn.disabled = false;
+                      status.textContent = "";
+                      return;
+                  }
 
-              const vendor_secret = (data2.vendor_secret || "").trim();
-              if (!vendor_secret) { err.textContent = "No vendor_secret returned."; return; }
-              localStorage.setItem("vendor_business_id", business_id);
-              localStorage.setItem("vendor_secret", vendor_secret);
-              window.location.href = "/vendor/";
-          } catch (e) {
-            err.textContent = "Network error: " + (e && e.message ? e.message : String(e));
-            btn.disabled = false;
-            status.textContent = "";
-          }
-        };
+                  localStorage.setItem("vendor_business_id", business_id);
+                  localStorage.setItem("vendor_secret", vendor_secret);
+                  window.location.href = "/vendor/";
+              } catch (e) {
+                  err.textContent = "Network error: " + (e && e.message ? e.message : String(e));
+                  btn.disabled = false;
+                  status.textContent = "";
+              }
+          };
+
       }
 
       loadVendorInfo();
