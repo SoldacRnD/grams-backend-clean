@@ -52,11 +52,8 @@ async function requireVendor(req, res, next) {
 
         if (!business_id) return res.status(401).json({ ok: false, error: "MISSING_BUSINESS_ID" });
         if (!vendor_secret) return res.status(401).json({ ok: false, error: "MISSING_VENDOR_SECRET" });
-        {
-            return res.status(403).json({ ok: false, error: "VENDOR_NOT_ONBOARDED" });
-        }
 
-
+        // 1) Load vendor FIRST
         const { data: vendor, error } = await supabase
             .from("vendors")
             .select("*")
@@ -66,23 +63,26 @@ async function requireVendor(req, res, next) {
         if (error) throw error;
         if (!vendor) return res.status(401).json({ ok: false, error: "VENDOR_NOT_FOUND" });
 
+        // 2) Then check onboarded
         if (!vendor.secret_hash) {
             return res.status(403).json({ ok: false, error: "VENDOR_NOT_ONBOARDED" });
         }
 
+        // 3) Verify secret
         const expected = vendor.secret_hash;
         const got = hashVendorSecret(vendor_secret);
         if (!safeEqual(expected, got)) {
             return res.status(401).json({ ok: false, error: "INVALID_VENDOR_SECRET" });
         }
 
-        req.vendor = vendor; // attach for downstream
+        req.vendor = vendor;
         next();
     } catch (err) {
         console.error("Vendor auth error:", err);
         return res.status(500).json({ ok: false, error: "VENDOR_AUTH_ERROR" });
     }
 }
+
 function requireAdmin(req, res, next) {
     const key = (req.headers["x-admin-key"] || "").toString().trim();
 
