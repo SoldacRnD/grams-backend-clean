@@ -20,6 +20,35 @@
             <button id="langPT" class="btn small" type="button">PT</button>
         </div>
         <header class="top">
+            <div class="card" id="profileCard">
+                <div class="form">
+                    <h2 id="profileTitle" style="margin-top:0;"></h2>
+                    <p id="profileHint" class="muted"></p>
+                    <div class="grid">
+                        <div>
+                            <label class="label">Business name</label>
+                            <input id="profileName" class="input" placeholder="e.g. Melgaço Film Museum" />
+                        </div>
+
+                        <div>
+                            <label class="label">Address</label>
+                            <input id="profileAddress" class="input" placeholder="Street, City, Country" />
+                        </div>
+
+                        <div>
+                            <label class="label">Maps URL</label>
+                            <input id="profileMapsUrl" class="input" placeholder="https://maps.google.com/?q=..." />
+                        </div>
+                    </div>
+
+                    <div class="row" style="margin-top:10px;">
+                        <button id="saveProfile" type="button" class="btn primary"></button>
+                        <a id="profileDirections" class="btn" target="_blank" rel="noopener" style="display:none;">Directions</a>
+                        <span id="profileStatus" class="muted"></span>
+                    </div>
+                </div>
+            </div>
+
             <div>
                 <h1>Vendor Perks</h1>
                 <p class="muted">Manage your perks (enable/disable) and keep grams snapshot updated.</p>

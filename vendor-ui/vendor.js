@@ -23,6 +23,7 @@
     const profileAddressEl = document.getElementById("profileAddress");
     const profileMapsUrlEl = document.getElementById("profileMapsUrl");
     const saveProfileBtn = document.getElementById("saveProfile");
+    const profileDirectionsEl = document.getElementById("profileDirections");
     const mapsPreviewEl = document.getElementById("mapsPreview");
     const profileStatusEl = document.getElementById("profileStatus");
     const I18N = {
@@ -37,6 +38,9 @@
             refresh: "Refresh",
             validate: "Validate a Gram",
             statusSaved: "Saved.",
+            businessProfileTitle: "Business profile",
+            businessProfileHint: "This information is shown to collectors when redeeming perks.",
+            saveProfile: "Save profile",
         },
         pt: {
             vendorPerks: "Beneficios do Parceiro",
@@ -49,8 +53,84 @@
             refresh: "Atualizar",
             validate: "Validar uma Gram",
             statusSaved: "Guardado.",
+            businessProfileTitle: "Perfil do negócio",
+            businessProfileHint: "Esta informação é mostrada aos colecionadores ao resgatar os beneficios.",
+            saveProfile: "Guardar perfil",
         }
     };
+    function setProfileStatus(msg) {
+        if (profileStatusEl) profileStatusEl.textContent = msg || "";
+    }
+
+    async function apiPut(url, body) {
+        const bid = (businessIdEl.value || localStorage.getItem("vendor_business_id") || "").trim();
+        const sec = (vendorSecretEl?.value || localStorage.getItem("vendor_secret") || "").trim();
+
+        const res = await fetch(url, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Business-Id": bid,
+                "X-Vendor-Secret": sec,
+            },
+            body: JSON.stringify(body || {}),
+        });
+
+        const text = await res.text();
+        let data = {};
+        try { data = text ? JSON.parse(text) : {}; } catch (_) { }
+        return { ok: res.ok, status: res.status, data, raw: text };
+    }
+
+    async function loadProfile() {
+        if (!profileNameEl) return; // profile card not present
+        setProfileStatus("Loading…");
+
+        const out = await apiGet(`${API_BASE}/api/vendor/profile`);
+        if (!out.ok || !out.data?.ok) {
+            setProfileStatus(`Failed (${out.status})`);
+            return;
+        }
+
+        const v = out.data.vendor || {};
+        profileNameEl.value = v.business_name || "";
+        profileAddressEl.value = v.address || "";
+        profileMapsUrlEl.value = v.maps_url || "";
+
+        const maps = (v.maps_url || "").trim();
+        if (profileDirectionsEl) {
+            profileDirectionsEl.style.display = maps ? "" : "none";
+            profileDirectionsEl.href = maps || "#";
+        }
+
+        setProfileStatus("Loaded.");
+    }
+
+    async function saveProfile() {
+        const payload = {
+            business_name: (profileNameEl.value || "").trim() || null,
+            address: (profileAddressEl.value || "").trim() || null,
+            maps_url: (profileMapsUrlEl.value || "").trim() || null,
+        };
+
+        setProfileStatus("Saving…");
+        const out = await apiPut(`${API_BASE}/api/vendor/profile`, payload);
+
+        if (!out.ok || !out.data?.ok) {
+            setProfileStatus(`Save failed (${out.status})`);
+            alert(out.data?.error || "Save failed");
+            return;
+        }
+
+        const v = out.data.vendor || {};
+        const maps = (v.maps_url || "").trim();
+        if (profileDirectionsEl) {
+            profileDirectionsEl.style.display = maps ? "" : "none";
+            profileDirectionsEl.href = maps || "#";
+        }
+
+        setProfileStatus("Saved ✅");
+    }
 
     function getLang() {
         return localStorage.getItem("vendor_lang") || "en";
@@ -58,6 +138,14 @@
     function setLang(lang) {
         localStorage.setItem("vendor_lang", lang);
         applyLang();
+        const profileTitleEl = document.getElementById("profileTitle");
+        if (profileTitleEl) profileTitleEl.textContent = t("businessProfileTitle");
+
+        const profileHintEl = document.getElementById("profileHint");
+        if (profileHintEl) profileHintEl.textContent = t("businessProfileHint");
+
+        const saveProfileBtn = document.getElementById("saveProfile");
+        if (saveProfileBtn) saveProfileBtn.textContent = t("saveProfile");
     }
     function t(key) {
         const lang = getLang();
@@ -639,7 +727,19 @@
 
     render(out.data.perks || []);
     setStatus(`Loaded ${out.data.perks?.length || 0} perks.`);
-  }
+    }
+    if (saveProfileBtn) saveProfileBtn.onclick = saveProfile;
+
+    // load after we have creds (on page load)
+    loadProfile();
+
+    // also reload profile after saving auth (so switching vendors updates profile)
+    const oldSave = saveBusinessBtn.onclick;
+    saveBusinessBtn.onclick = async () => {
+        oldSave();
+        await loadProfile();
+    };
+
 
   loadBtn.onclick = loadPerks;
   refreshBtn.onclick = loadPerks;
