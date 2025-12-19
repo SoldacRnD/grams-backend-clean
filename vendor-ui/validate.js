@@ -147,9 +147,6 @@
   function renderValidated(payload) {
     const g = payload.gram;
       const perks = payload.perks || [];
-      const label = state === "available"
-          ? t("approve")
-          : `${t("cooldown")} (${msToHuman(p.cooldown_remaining_ms)})`;
 
     if (!perks.length) {
       resultEl.innerHTML = `
@@ -181,8 +178,8 @@
                 const state = p.state;
                 const disabled = state !== "available";
                 const label = state === "available"
-                    ? "Approve"
-                    : `On cooldown (${msToHuman(p.cooldown_remaining_ms)})`;
+                    ? t("approve")
+                    : `${t("cooldown")} (${msToHuman(p.cooldown_remaining_ms)})`;
 
                 return `
     <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin:10px 0;">
@@ -248,5 +245,5 @@
     loadSaved();
     showSoldacLinksIfNeeded();
       // Auto-load if tag present in URL
-    if ((nfcTagIdEl.value || "").trim()) load("Validating…");
+    if ((nfcTagIdEl.value || "").trim()) load();
 })();
