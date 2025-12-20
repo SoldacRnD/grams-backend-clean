@@ -32,7 +32,7 @@
             manageYourPerks: "Manage your perks (enable/disable) and keep grams snapshot updated.",
             businessId: "Business ID",
             vendorKey: "Vendor Key",
-            loadPerks: "Load perks",
+            loadPerks: "Load Perks",
             save: "Save",
             createPerk: "Create perk",
             refresh: "Refresh",
@@ -45,6 +45,7 @@
             vendorSessionActive: "Vendor session active on this device.",
             switchBusiness: "Switch business",
             logout: "Log out",
+            loadYourGramsPerks: "Load your Gram perks",
         },
         pt: {
             vendorPerks: "Beneficios do Parceiro",
@@ -64,6 +65,7 @@
             vendorSessionActive: "Sessão do parceiro ativa neste dispositivo.",
             switchBusiness: "Mudar de negócio",
             logout: "Terminar sessão",
+            loadYourGramsPerks: "Carrega os beneficios dos teus Grams"
         }
     };
     function setProfileStatus(msg) {
@@ -186,7 +188,7 @@
 
         // Buttons (by id if present)
         const loadBtn = document.getElementById("loadPerks");
-        if (loadBtn) loadBtn.textContent = t("loadPerks");
+        if (loadBtn) loadBtn.textContent = t("loadYourGramsPerks");
 
         const refreshBtn = document.getElementById("refresh");
         if (refreshBtn) refreshBtn.textContent = t("refresh");
@@ -299,7 +301,9 @@
     localStorage.setItem("vendor_business_id", bid);
         localStorage.setItem("vendor_secret", sec);
         applyAuthUX();
-    applyTypeLock();
+        applyLang();
+        applyTypeLock();
+    autoLoadPerksIfReady();
 
     setStatus("Business ID + Vendor Key saved.");
     await loadProfile();
@@ -825,5 +829,16 @@
     document.getElementById("langEN")?.addEventListener("click", () => setLang("en"));
     document.getElementById("langPT")?.addEventListener("click", () => setLang("pt"));
     applyLang();
+    if (hasVendorAuth()) {
+        loadPerks(); // or whatever your function is called
+    }
+    async function autoLoadPerksIfReady() {
+        if (!hasVendorAuth()) return;
+        // optionally skip if already loaded
+        setStatus?.("Loading perks…");
+        await loadPerks(); // must be the same function used by the button
+    }
+
+    autoLoadPerksIfReady();
 //
 })();
