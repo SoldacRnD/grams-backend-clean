@@ -41,6 +41,10 @@
             businessProfileTitle: "Business profile",
             businessProfileHint: "This information is shown to collectors when redeeming perks.",
             saveProfile: "Save profile",
+            connectedAs: "Connected as",
+            vendorSessionActive: "Vendor session active on this device.",
+            switchBusiness: "Switch business",
+            logout: "Log out",
         },
         pt: {
             vendorPerks: "Beneficios do Parceiro",
@@ -56,6 +60,10 @@
             businessProfileTitle: "Perfil do negócio",
             businessProfileHint: "Esta informação é mostrada aos colecionadores ao resgatar os beneficios.",
             saveProfile: "Guardar perfil",
+            connectedAs: "Ligado como",
+            vendorSessionActive: "Sessão do parceiro ativa neste dispositivo.",
+            switchBusiness: "Mudar de negócio",
+            logout: "Terminar sessão",
         }
     };
     function setProfileStatus(msg) {
@@ -137,6 +145,7 @@
     }
     function setLang(lang) {
         localStorage.setItem("vendor_lang", lang);
+        applyAuthUX();
         applyLang();
         const profileTitleEl = document.getElementById("profileTitle");
         if (profileTitleEl) profileTitleEl.textContent = t("businessProfileTitle");
@@ -146,6 +155,22 @@
 
         const saveProfileBtn = document.getElementById("saveProfile");
         if (saveProfileBtn) saveProfileBtn.textContent = t("saveProfile");
+        const connectedAsEl = document.getElementById("connectedAs");
+        if (connectedAsEl) {
+            const bid = (localStorage.getItem("vendor_business_id") || "").trim();
+            connectedAsEl.textContent = bid ? `${t("connectedAs")}: ${bid}` : t("connectedAs");
+        }
+
+        const vendorSessionHintEl = document.getElementById("vendorSessionHint");
+        if (vendorSessionHintEl) vendorSessionHintEl.textContent = t("vendorSessionActive");
+
+        const switchVendorBtn = document.getElementById("switchVendor");
+        if (switchVendorBtn) switchVendorBtn.textContent = t("switchBusiness");
+
+        const logoutVendorBtn = document.getElementById("logoutVendor");
+        if (logoutVendorBtn) logoutVendorBtn.textContent = t("logout");
+
+
     }
     function t(key) {
         const lang = getLang();
@@ -172,6 +197,53 @@
         const createBtn = document.getElementById("createPerk");
         if (createBtn) createBtn.textContent = t("createPerk");
     }
+
+    function hasVendorAuth() {
+        const bid = (localStorage.getItem("vendor_business_id") || "").trim();
+        const sec = (localStorage.getItem("vendor_secret") || "").trim();
+        return !!(bid && sec);
+    }
+
+    function applyAuthUX() {
+        const authCard = document.getElementById("authCard");
+        const onboardingBlock = document.getElementById("onboardingBlock");
+        const connectedCard = document.getElementById("connectedCard");
+        const connectedAs = document.getElementById("connectedAs");
+
+        // Always hide onboarding block in Vendor UI
+        if (onboardingBlock) onboardingBlock.style.display = "none";
+
+        if (hasVendorAuth()) {
+            const bid = (localStorage.getItem("vendor_business_id") || "").trim();
+            if (connectedAs) connectedAs.textContent = `Connected as: ${bid}`;
+            if (connectedCard) connectedCard.style.display = "";
+            if (authCard) authCard.style.display = "none";
+        } else {
+            if (connectedCard) connectedCard.style.display = "none";
+            if (authCard) authCard.style.display = "";
+        }
+        function isAdvancedMode() {
+            const bid = (localStorage.getItem("vendor_business_id") || "").trim();
+            const dbg = new URLSearchParams(location.search).get("debug") === "1";
+            return bid === "SOLDAC" || dbg;
+        }
+        // Show vendor secret field only in advanced mode
+        const adv = isAdvancedMode();
+        document.getElementById("switchVendor").style.display = adv ? "" : "none";
+        document.getElementById("logoutVendor").style.display = adv ? "" : "none";
+
+    }
+
+    document.getElementById("switchVendor")?.addEventListener("click", () => {
+        document.getElementById("authCard").style.display = "";
+        document.getElementById("connectedCard").style.display = "none";
+    });
+
+    document.getElementById("logoutVendor")?.addEventListener("click", () => {
+        localStorage.removeItem("vendor_business_id");
+        localStorage.removeItem("vendor_secret");
+        location.reload();
+    });
 
 
     function setProfileStatus(msg) {
@@ -225,7 +297,8 @@
     if (!sec) return alert("Vendor Key required");
 
     localStorage.setItem("vendor_business_id", bid);
-    localStorage.setItem("vendor_secret", sec);
+        localStorage.setItem("vendor_secret", sec);
+        applyAuthUX();
     applyTypeLock();
 
     setStatus("Business ID + Vendor Key saved.");
@@ -745,6 +818,7 @@
   refreshBtn.onclick = loadPerks;
 
     loadSaved();
+    applyAuthUX();
     applyTypeLock();
     loadProfile();
     showSoldacLinksIfNeeded();

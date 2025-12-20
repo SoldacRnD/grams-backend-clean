@@ -53,34 +53,56 @@
                 <h1>Vendor Perks</h1>
                 <p class="muted">Manage your perks (enable/disable) and keep grams snapshot updated.</p>
             </div>
-
-            <div class="auth">
-                <label class="label">Business ID</label>
-                <div class="row">
-                    <input id="businessId" class="input" placeholder="e.g. Bar11" />
+            <div class="card" id="connectedCard" style="display:none;">
+                <div class="form">
+                    <div class="row" style="justify-content:space-between; align-items:center;">
+                        <div>
+                            <strong id="connectedAs"></strong>
+                            <div id="vendorSessionHint" class="muted"></div>
+                        </div>
+                        <div class="row">
+                            <button id="switchVendor" class="btn" type="button"></button>
+                            <button id="logoutVendor" class="btn" type="button"></button>
+                        </div>
+                    </div>
                 </div>
-
-                <label class="label" style="margin-top:10px;">Vendor Key</label>
-                <div class="row">
-                    <input id="vendorSecret" class="input" placeholder="••••••••" />
-                    <button id="saveBusinessId" class="btn">Save</button>
-                </div>
-                <div style="margin-top:12px;">
-                    <label>Onboarding link (safe)</label>
-                    <input id="vendorOnboardUrl" readonly />
-                    <button id="copyVendorOnboard">Copy</button>
-                </div>
-
-                <div style="margin-top:12px;">
-                    <img id="vendorOnboardQr" alt="Vendor onboarding QR" style="max-width:220px;border:1px solid #ddd;border-radius:12px;padding:8px;" />
-                </div>
-                <div class="row">
-                    <input id="gramId" class="input" placeholder="Optional: filter by gram_id (e.g. G002)" />
-                    <button id="loadPerks" class="btn primary">Load perks</button>
-                </div>
-
-                <p id="status" class="status muted"></p>
             </div>
+
+            <div class="card" id="authCard">
+                <div class="auth">
+                    <label class="label">Business ID</label>
+                    <div class="row">
+                        <input id="businessId" class="input" placeholder="e.g. Bar11" />
+                    </div>
+
+                    <label class="label" style="margin-top:10px;">Vendor Key</label>
+                    <div class="row">
+                        <input id="vendorSecret" class="input" placeholder="••••••••" />
+                        <button id="saveBusinessId" class="btn" type="button">Save</button>
+                    </div>
+                </div>
+
+                <div id="onboardingBlock">
+                    <div style="margin-top:12px;">
+                        <label>Onboarding link (safe)</label>
+                        <input id="vendorOnboardUrl" readonly />
+                        <button id="copyVendorOnboard" type="button">Copy</button>
+                    </div>
+
+                    <div style="margin-top:12px;">
+                        <img id="vendorOnboardQr" alt="Vendor onboarding QR"
+                             style="max-width:220px;border:1px solid #ddd;border-radius:12px;padding:8px;" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <input id="gramId" class="input" placeholder="Optional: filter by gram_id (e.g. G002)" />
+                <button id="loadPerks" class="btn primary">Load perks</button>
+            </div>
+
+            <p id="status" class="status muted"></p>
+</div>
         </header>
 
         <main>
