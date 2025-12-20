@@ -31,6 +31,15 @@ button:disabled {opacity: .55;cursor: not-allowed;}
 .form {
     padding: 12px 14px;
 }
+header.top p.muted {
+    min-height: 40px;
+}
+
+.row {
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
 
 .top-grid {
     display: grid;
@@ -38,6 +47,11 @@ button:disabled {opacity: .55;cursor: not-allowed;}
     gap: 16px;
     align-items: start;
 }
+.stack {
+    display: grid;
+    gap: 16px;
+}
+
 
 @media (max-width: 900px) {
     .top-grid {
