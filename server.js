@@ -1555,13 +1555,7 @@ app.get("/api/vendor/perks", requireVendor, async (req, res) => {
         return res.status(500).json({ ok: false, error: "VENDOR_PERKS_LIST_ERROR" });
     }
 });
-    } catch (err) {
-        console.error("PUT /api/vendor/profile error:", err);
-        return res.status(500).json({ ok: false, error: "VENDOR_PROFILE_UPDATE_ERROR" });
-    }
-});
-
-
+    
 // POST /api/vendor/perks/:id/enable
 // body: { business_id: "Bar11" }
 app.post("/api/vendor/perks/:id/enable", requireVendor, async (req, res) => {
