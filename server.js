@@ -319,27 +319,6 @@ app.post("/api/vendor/session", requireVendor, async (req, res) => {
     return res.json({ ok: true });
 });
 
-app.get("/t/:tag", async (req, res) => {
-    const tag = req.params.tag;
-
-    const cookie = req.headers.cookie || "";
-    const match = cookie.match(/vendor_session=([^;]+)/);
-    const token = match ? decodeURIComponent(match[1]) : null;
-
-    const businessId = verifyVendorSession(token);
-
-    if (businessId) {
-        return res.redirect(
-            `/vendor/validate.html?business_id=${encodeURIComponent(businessId)}&tag=${encodeURIComponent(tag)}`
-        );
-    }
-
-    return res.redirect(
-        `https://www.soldacstudio.com/pages/gram?tag=${encodeURIComponent(tag)}`
-    );
-});
-
-
 // Smart NFC entrypoint: decide vendor vs customer
 app.get("/t/:tag", async (req, res) => {
     try {
