@@ -292,23 +292,32 @@
 
 
     saveBusinessBtn.onclick = async () => {
-    const bid = (businessIdEl.value || "").trim();
-    const sec = (vendorSecretEl?.value || "").trim();
+        const bid = (businessIdEl.value || "").trim();
+        const sec = (vendorSecretEl?.value || "").trim();
 
-    if (!bid) return alert("Business ID required");
-    if (!sec) return alert("Vendor Key required");
+        if (!bid) return alert("Business ID required");
+        if (!sec) return alert("Vendor Key required");
 
-    localStorage.setItem("vendor_business_id", bid);
+        localStorage.setItem("vendor_business_id", bid);
         localStorage.setItem("vendor_secret", sec);
-        applyAuthUX();
-        applyLang();
         applyTypeLock();
-    autoLoadPerksIfReady();
+        showSoldacLinksIfNeeded();
 
-    setStatus("Business ID + Vendor Key saved.");
-    await loadProfile();
-    showSoldacLinksIfNeeded();
-};
+        // ✅ NEW: set vendor session cookie on backend
+        try {
+            await fetch(`/api/vendor/session`, {
+                method: "POST",
+                headers: {
+                    "X-Business-Id": bid,
+                    "X-Vendor-Secret": sec
+                },
+                credentials: "include"
+            });
+        } catch (_) { }
+
+        setStatus("Business ID + Vendor Key saved.");
+    };
+
 
     async function loadProfile() {
         if (!profileNameEl) return; // card not present

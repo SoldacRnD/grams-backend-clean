@@ -82,17 +82,31 @@
     }
     
 
-  saveAuthBtn.onclick = () => {
-    const bid = (businessIdEl.value || "").trim();
-    const sec = (vendorSecretEl.value || "").trim();
-    if (!bid) return alert("Business ID required");
-    if (!sec) return alert("Vendor Key required");
-    localStorage.setItem("vendor_business_id", bid);
-    localStorage.setItem("vendor_secret", sec);
-      setStatus("Saved.");
-      showSoldacLinksIfNeeded();
+    saveAuthBtn.onclick = async () => {
+        const bid = (businessIdEl.value || "").trim();
+        const sec = (vendorSecretEl.value || "").trim();
+        if (!bid) return alert("Business ID required");
+        if (!sec) return alert("Vendor Key required");
 
-  };
+        localStorage.setItem("vendor_business_id", bid);
+        localStorage.setItem("vendor_secret", sec);
+
+        // ✅ NEW: set vendor session cookie on backend so /t/:tag can detect vendor device
+        try {
+            await fetch(`/api/vendor/session`, {
+                method: "POST",
+                headers: {
+                    "X-Business-Id": bid,
+                    "X-Vendor-Secret": sec
+                },
+                credentials: "include"
+            });
+        } catch (_) { }
+
+        setStatus("Saved.");
+        showSoldacLinksIfNeeded();
+    };
+
 
   async function apiGet(url) {
     const bid = (businessIdEl.value || localStorage.getItem("vendor_business_id") || "").trim();

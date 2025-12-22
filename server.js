@@ -108,6 +108,43 @@ function hashOnboardingToken(token) {
     return crypto.createHmac("sha256", salt).update(String(token || "")).digest("hex");
 }
 
+// --- Vendor session cookie (for smart NFC redirect) ---
+const VENDOR_SESSION_COOKIE = "vendor_session";
+const VENDOR_SESSION_SECRET =
+    process.env.VENDOR_SESSION_SECRET || process.env.VENDOR_SECRET_SALT || "CHANGE_ME_VENDOR_SESSION_SECRET";
+
+function readCookie(req, name) {
+    const raw = req.headers.cookie || "";
+    const parts = raw.split(";").map(s => s.trim());
+    for (const part of parts) {
+        if (part.startsWith(name + "=")) {
+            return decodeURIComponent(part.slice(name.length + 1));
+        }
+    }
+    return null;
+}
+
+function signVendorSession(businessId) {
+    const bid = String(businessId || "").trim();
+    const sig = crypto
+        .createHmac("sha256", VENDOR_SESSION_SECRET)
+        .update(bid)
+        .digest("hex");
+    return `${bid}.${sig}`;
+}
+
+function verifyVendorSession(value) {
+    if (!value) return null;
+    const [bid, sig] = String(value).split(".");
+    if (!bid || !sig) return null;
+    const expected = crypto
+        .createHmac("sha256", VENDOR_SESSION_SECRET)
+        .update(bid)
+        .digest("hex");
+    if (!safeEqual(expected, sig)) return null;
+    return bid;
+}
+
 
 // Middleware
 app.use(cors());
@@ -240,6 +277,45 @@ app.post("/api/vendor/onboard/complete", async (req, res) => {
         return res.status(500).json({ ok: false, error: "ONBOARD_COMPLETE_ERROR" });
     }
 });
+
+// Smart NFC entrypoint: decide vendor vs customer
+app.get("/t/:tag", async (req, res) => {
+    try {
+        const tag = String(req.params.tag || "").trim();
+        if (!tag) return res.status(400).send("Missing tag");
+
+        // 1) If vendor session cookie exists and is valid -> vendor validate flow
+        const sess = readCookie(req, VENDOR_SESSION_COOKIE);
+        const businessId = verifyVendorSession(sess);
+
+        if (businessId) {
+            // Optional: verify vendor still onboarded in DB (extra safety)
+            const { data: vendor, error } = await supabase
+                .from("vendors")
+                .select("business_id,secret_hash")
+                .eq("business_id", businessId)
+                .maybeSingle();
+
+            if (!error && vendor && vendor.secret_hash) {
+                return res.redirect(
+                    `/vendor/validate.html?business_id=${encodeURIComponent(businessId)}&tag=${encodeURIComponent(tag)}`
+                );
+            }
+        }
+
+        // 2) Otherwise -> customer journey
+        return res.redirect(
+            `https://www.soldacstudio.com/pages/gram?tag=${encodeURIComponent(tag)}`
+        );
+    } catch (err) {
+        console.error("Smart tap redirect error:", err);
+        // Fail safe: customer journey
+        return res.redirect(
+            `https://www.soldacstudio.com/pages/gram?tag=${encodeURIComponent(req.params.tag || "")}`
+        );
+    }
+});
+
 
 
 
@@ -1645,6 +1721,38 @@ app.post("/api/vendor/perks/:id/disable", requireVendor, async (req, res) => {
         return res.status(500).json({ ok: false, error: "VENDOR_PERK_DISABLE_ERROR" });
     }
 });
+
+// Create/refresh vendor session cookie (device becomes "vendor device")
+app.post("/api/vendor/session", requireVendor, async (req, res) => {
+    try {
+        const bid = String(req.vendor?.business_id || "").trim();
+        if (!bid) return res.status(400).json({ ok: false, error: "MISSING_BUSINESS_ID" });
+
+        const token = signVendorSession(bid);
+
+        // Cookie works because vendor UI + /t/:tag are served from SAME backend domain
+        res.cookie(VENDOR_SESSION_COOKIE, token, {
+            httpOnly: true,
+            sameSite: "Lax",
+            secure: true,          // Render is https
+            maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
+            path: "/",
+        });
+
+        return res.json({ ok: true, business_id: bid });
+    } catch (err) {
+        console.error("Vendor session error:", err);
+        return res.status(500).json({ ok: false, error: "VENDOR_SESSION_ERROR" });
+    }
+});
+
+// Optional: logout / clear cookie
+app.post("/api/vendor/logout", (req, res) => {
+    res.clearCookie(VENDOR_SESSION_COOKIE, { path: "/" });
+    return res.json({ ok: true });
+});
+
+
 
 // -----------------------------------------------------------------------------
 // Vendor API: Create / Update / Delete perks
