@@ -298,27 +298,6 @@ function verifyVendorSession(value) {
 
     return expected === sig ? bid : null;
 }
-
-// Create vendor session cookie
-app.post("/api/vendor/session", requireVendor, async (req, res) => {
-    const businessId = req.vendor?.business_id;
-    if (!businessId) {
-        return res.status(400).json({ ok: false, error: "NO_BUSINESS_ID" });
-    }
-
-    const token = signVendorSession(businessId);
-
-    res.cookie(VENDOR_SESSION_COOKIE, token, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "Lax",
-        maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
-        path: "/",
-    });
-
-    return res.json({ ok: true });
-});
-
 // Smart NFC entrypoint: decide vendor vs customer
 app.get("/t/:tag", async (req, res) => {
     try {
