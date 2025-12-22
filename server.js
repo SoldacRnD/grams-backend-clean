@@ -277,6 +277,75 @@ app.post("/api/vendor/onboard/complete", async (req, res) => {
         return res.status(500).json({ ok: false, error: "ONBOARD_COMPLETE_ERROR" });
     }
 });
+// ---- Vendor session (marks device as vendor) ----
+const crypto = require("crypto");
+
+const VENDOR_SESSION_COOKIE = "vendor_session";
+const VENDOR_SESSION_SECRET =
+    process.env.VENDOR_SESSION_SECRET || "dev_vendor_session_secret";
+
+// helper: sign business_id
+function signVendorSession(businessId) {
+    const sig = crypto
+        .createHmac("sha256", VENDOR_SESSION_SECRET)
+        .update(businessId)
+        .digest("hex");
+    return `${businessId}.${sig}`;
+}
+
+function verifyVendorSession(value) {
+    if (!value) return null;
+    const [bid, sig] = value.split(".");
+    if (!bid || !sig) return null;
+
+    const expected = crypto
+        .createHmac("sha256", VENDOR_SESSION_SECRET)
+        .update(bid)
+        .digest("hex");
+
+    return expected === sig ? bid : null;
+}
+
+// Create vendor session cookie
+app.post("/api/vendor/session", requireVendor, async (req, res) => {
+    const businessId = req.vendor?.business_id;
+    if (!businessId) {
+        return res.status(400).json({ ok: false, error: "NO_BUSINESS_ID" });
+    }
+
+    const token = signVendorSession(businessId);
+
+    res.cookie(VENDOR_SESSION_COOKIE, token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "Lax",
+        maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
+        path: "/",
+    });
+
+    return res.json({ ok: true });
+});
+
+app.get("/t/:tag", async (req, res) => {
+    const tag = req.params.tag;
+
+    const cookie = req.headers.cookie || "";
+    const match = cookie.match(/vendor_session=([^;]+)/);
+    const token = match ? decodeURIComponent(match[1]) : null;
+
+    const businessId = verifyVendorSession(token);
+
+    if (businessId) {
+        return res.redirect(
+            `/vendor/validate.html?business_id=${encodeURIComponent(businessId)}&tag=${encodeURIComponent(tag)}`
+        );
+    }
+
+    return res.redirect(
+        `https://www.soldacstudio.com/pages/gram?tag=${encodeURIComponent(tag)}`
+    );
+});
+
 
 // Smart NFC entrypoint: decide vendor vs customer
 app.get("/t/:tag", async (req, res) => {
