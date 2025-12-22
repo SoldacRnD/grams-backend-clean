@@ -277,7 +277,7 @@ app.post("/api/vendor/onboard/complete", async (req, res) => {
         return res.status(500).json({ ok: false, error: "ONBOARD_COMPLETE_ERROR" });
     }
 });
-// helper: sign business_id
+  // helper: sign business_id
 function signVendorSession(businessId) {
     const sig = crypto
         .createHmac("sha256", VENDOR_SESSION_SECRET)
@@ -377,10 +377,6 @@ app.get("/t/:tag", async (req, res) => {
         );
     }
 });
-
-
-
-
 
 
 // -----------------------------------------------------------------------------
