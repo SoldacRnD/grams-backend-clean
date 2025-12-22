@@ -10,6 +10,10 @@ const newId = require('./utils/id');
 const PORT = process.env.PORT || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 const app = express();
+
+// Behind Render/Proxy: needed so req.secure reflects X-Forwarded-Proto
+app.set('trust proxy', 1);
+
 const {
     listProducts,
     createProductForGram,
@@ -277,37 +281,17 @@ app.post("/api/vendor/onboard/complete", async (req, res) => {
         return res.status(500).json({ ok: false, error: "ONBOARD_COMPLETE_ERROR" });
     }
 });
-  // helper: sign business_id
-function signVendorSession(businessId) {
-    const sig = crypto
-        .createHmac("sha256", VENDOR_SESSION_SECRET)
-        .update(businessId)
-        .digest("hex");
-    return `${businessId}.${sig}`;
-}
-
-function verifyVendorSession(value) {
-    if (!value) return null;
-    const [bid, sig] = value.split(".");
-    if (!bid || !sig) return null;
-
-    const expected = crypto
-        .createHmac("sha256", VENDOR_SESSION_SECRET)
-        .update(bid)
-        .digest("hex");
-
-    return expected === sig ? bid : null;
-}
 // Smart NFC entrypoint: decide vendor vs customer
 app.get("/t/:tag", async (req, res) => {
+    const startedAt = Date.now();
     try {
         const tag = String(req.params.tag || "").trim();
+        const rawCookie = req.headers.cookie || "";
+                console.log("[tap]", { tag, hasCookie: !!rawCookie, hasVendorCookie: !!sess, businessId, ua: (req.headers["user-agent"] || "").toString().slice(0, 80) });
         if (!tag) return res.status(400).send("Missing tag");
 
         // 1) If vendor session cookie exists and is valid -> vendor validate flow
-        const sess = readCookie(req, VENDOR_SESSION_COOKIE);
-        const businessId = verifyVendorSession(sess);
-
+        
         if (businessId) {
             // Optional: verify vendor still onboarded in DB (extra safety)
             const { data: vendor, error } = await supabase
@@ -1571,64 +1555,6 @@ app.get("/api/vendor/perks", requireVendor, async (req, res) => {
         return res.status(500).json({ ok: false, error: "VENDOR_PERKS_LIST_ERROR" });
     }
 });
-// Vendor profile (read)
-app.get("/api/vendor/profile", requireVendor, async (req, res) => {
-    try {
-        const v = req.vendor;
-        return res.json({
-            ok: true,
-            vendor: {
-                business_id: v.business_id,
-                business_name: v.business_name,
-                address: v.address,
-                maps_url: v.maps_url,
-                lat: v.lat,
-                lng: v.lng,
-            }
-        });
-    } catch (err) {
-        console.error("GET /api/vendor/profile error:", err);
-        return res.status(500).json({ ok: false, error: "VENDOR_PROFILE_READ_ERROR" });
-    }
-});
-function cleanMapsUrl(u) {
-    const s = String(u || "").trim();
-    if (!s) return null;
-    // allow only http(s) to avoid javascript: and other unsafe schemes
-    if (!/^https?:\/\//i.test(s)) return null;
-    return s;
-}
-
-app.put("/api/vendor/profile", requireVendor, async (req, res) => {
-    try {
-        const business_id = req.vendor.business_id;
-
-        // allow only these fields:
-        const business_name = String(req.body?.business_name || "").trim() || null;
-        const address = String(req.body?.address || "").trim() || null;
-        const maps_url = cleanMapsUrl(req.body?.maps_url);
-
-        // optional lat/lng if you want now; keep it simple otherwise:
-        // const lat = req.body?.lat != null ? Number(req.body.lat) : null;
-        // const lng = req.body?.lng != null ? Number(req.body.lng) : null;
-
-        const patch = {
-            business_name,
-            address,
-            maps_url,
-            updated_at: new Date().toISOString(),
-        };
-
-        const { data: updated, error } = await supabase
-            .from("vendors")
-            .update(patch)
-            .eq("business_id", business_id)
-            .select("business_id,business_name,address,maps_url,lat,lng,updated_at")
-            .single();
-
-        if (error) throw error;
-
-        return res.json({ ok: true, vendor: updated });
     } catch (err) {
         console.error("PUT /api/vendor/profile error:", err);
         return res.status(500).json({ ok: false, error: "VENDOR_PROFILE_UPDATE_ERROR" });
@@ -1760,6 +1686,19 @@ app.post("/api/vendor/session", requireVendor, async (req, res) => {
         console.error("Vendor session error:", err);
         return res.status(500).json({ ok: false, error: "VENDOR_SESSION_ERROR" });
     }
+});
+
+// Debug: check if this device has an active vendor session cookie
+app.get("/api/vendor/session/status", (req, res) => {
+    const sess = readCookie(req, VENDOR_SESSION_COOKIE);
+    const business_id = verifyVendorSession(sess);
+    return res.json({
+        ok: true,
+        has_cookie: !!sess,
+        business_id: business_id || null,
+        // handy for debugging in logs; do not expose in production if you dislike:
+        cookie_sample: sess ? String(sess).slice(0, 18) + "…" : null
+    });
 });
 
 // Optional: logout / clear cookie

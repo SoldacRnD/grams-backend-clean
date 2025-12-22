@@ -305,7 +305,7 @@
 
         // ✅ NEW: set vendor session cookie on backend
         try {
-            await fetch(`/api/vendor/session`, {
+            const r = await fetch(`/api/vendor/session`, {
                 method: "POST",
                 headers: {
                     "X-Business-Id": bid,
@@ -313,7 +313,15 @@
                 },
                 credentials: "include"
             });
-        } catch (_) { }
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok || !j.ok) {
+                console.warn("vendor session failed", r.status, j);
+                alert("Vendor session cookie NOT set. Check Business ID / Vendor Key.");
+            } else {
+                const s = await fetch(`/api/vendor/session/status`, { credentials: "include" }).then(x => x.json()).catch(() => ({}));
+                console.log("session status", s);
+            }
+        } catch (e) { console.warn("vendor session error", e); }
 
         setStatus("Business ID + Vendor Key saved.");
     };
