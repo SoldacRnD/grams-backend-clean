@@ -278,8 +278,6 @@ app.post("/api/vendor/onboard/complete", async (req, res) => {
     }
 });
 // ---- Vendor session (marks device as vendor) ----
-const crypto = require("crypto");
-
 const VENDOR_SESSION_COOKIE = "vendor_session";
 const VENDOR_SESSION_SECRET =
     process.env.VENDOR_SESSION_SECRET || "dev_vendor_session_secret";
