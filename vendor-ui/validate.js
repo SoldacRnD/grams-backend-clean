@@ -208,7 +208,22 @@
     <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin:10px 0;">
       <div>
         <strong>${p.business_name || p.business_id}</strong>
-        <div class="muted" style="margin-top:4px;">${p.type}</div>
+        <div class="muted" style="margin-top:4px;">
+  ${p.type}
+  ${p.type === "free_item" && p.metadata?.item_name
+                        ? ` • item: ${p.metadata.item_name}`
+                        : ""
+                    }
+  ${p.type === "discount" && (p.metadata?.discount_percent != null)
+                        ? ` • ${p.metadata.discount_percent}%`
+                        : ""
+                    }
+  ${p.type === "access" && p.metadata?.access_label
+                        ? ` • ${p.metadata.access_label}`
+                        : ""
+  }
+</div>
+
         ${p.cooldown_seconds ? `<div class="muted">Cooldown: ${p.cooldown_seconds}s</div>` : ``}
       </div>
 
