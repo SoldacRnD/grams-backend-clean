@@ -118,7 +118,46 @@
 
                   localStorage.setItem("vendor_business_id", business_id);
                   localStorage.setItem("vendor_secret", vendor_secret);
+
+                  // ✅ NEW: set vendor session cookie on backend so /t/:tag can detect vendor device
+                  try {
+                      const r = await fetch(`${BACKEND_URL}/api/vendor/session`, {
+                          method: "POST",
+                          headers: {
+                              "X-Business-Id": business_id,
+                              "X-Vendor-Secret": vendor_secret
+                          },
+                          credentials: "include"
+                      });
+
+                      const j = await r.json().catch(() => ({}));
+                      if (!r.ok || !j.ok) {
+                          err.textContent = "Activated secret, but failed to set vendor session cookie.";
+                          btn.disabled = false;
+                          status.textContent = "";
+                          return;
+                      }
+
+                      // Optional: confirm cookie exists
+                      const s = await fetch(`${BACKEND_URL}/api/vendor/session/status`, { credentials: "include" })
+                          .then(x => x.json())
+                          .catch(() => ({}));
+
+                      if (!s || !s.has_cookie) {
+                          err.textContent = "Vendor session cookie was not set (blocked by browser?).";
+                          btn.disabled = false;
+                          status.textContent = "";
+                          return;
+                      }
+                  } catch (e) {
+                      err.textContent = "Cookie set error: " + (e?.message || String(e));
+                      btn.disabled = false;
+                      status.textContent = "";
+                      return;
+                  }
+
                   window.location.href = "/vendor/";
+
               } catch (e) {
                   err.textContent = "Network error: " + (e && e.message ? e.message : String(e));
                   btn.disabled = false;
