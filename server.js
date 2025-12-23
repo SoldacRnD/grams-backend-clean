@@ -283,17 +283,25 @@ app.post("/api/vendor/onboard/complete", async (req, res) => {
 });
 // Smart NFC entrypoint: decide vendor vs customer
 app.get("/t/:tag", async (req, res) => {
-    const startedAt = Date.now();
     try {
         const tag = String(req.params.tag || "").trim();
-        const rawCookie = req.headers.cookie || "";
-                console.log("[tap]", { tag, hasCookie: !!rawCookie, hasVendorCookie: !!sess, businessId, ua: (req.headers["user-agent"] || "").toString().slice(0, 80) });
         if (!tag) return res.status(400).send("Missing tag");
 
-        // 1) If vendor session cookie exists and is valid -> vendor validate flow
-        
+        // ✅ READ COOKIE + VERIFY
+        const rawCookie = req.headers.cookie || "";
+        const sess = readCookie(req, VENDOR_SESSION_COOKIE);
+        const businessId = verifyVendorSession(sess);
+
+        console.log("[tap]", {
+            tag,
+            hasCookie: !!rawCookie,
+            hasVendorCookie: !!sess,
+            businessId,
+            ua: (req.headers["user-agent"] || "").toString().slice(0, 80),
+        });
+
+        // 1) Vendor flow
         if (businessId) {
-            // Optional: verify vendor still onboarded in DB (extra safety)
             const { data: vendor, error } = await supabase
                 .from("vendors")
                 .select("business_id,secret_hash")
@@ -307,18 +315,18 @@ app.get("/t/:tag", async (req, res) => {
             }
         }
 
-        // 2) Otherwise -> customer journey
+        // 2) Customer flow
         return res.redirect(
             `https://www.soldacstudio.com/pages/gram?tag=${encodeURIComponent(tag)}`
         );
     } catch (err) {
         console.error("Smart tap redirect error:", err);
-        // Fail safe: customer journey
         return res.redirect(
             `https://www.soldacstudio.com/pages/gram?tag=${encodeURIComponent(req.params.tag || "")}`
         );
     }
 });
+
 
 
 // -----------------------------------------------------------------------------
