@@ -10,10 +10,6 @@ const newId = require('./utils/id');
 const PORT = process.env.PORT || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 const app = express();
-app.get("/api/health", (req, res) => {
-    res.status(200).send("ok");
-});
-
 
 // Behind Render/Proxy: needed so req.secure reflects X-Forwarded-Proto
 app.set('trust proxy', 1);
@@ -163,6 +159,9 @@ function rawBodySaver(req, res, buf) {
 app.use(express.json({ verify: rawBodySaver })); // default type: application/json
 app.use(express.json({ limit: "2mb", verify: rawBodySaver }));
 app.use('/public', express.static(path.join(__dirname, 'public')));
+
+// NOW add health
+app.get("/api/health", (req, res) => res.status(200).send("ok"));
 
 // Import from /notion because you have no /routes folder
 const { router: checkpointsRouter, createCheckpointPage } = require('./notion/checkpoints');
