@@ -10,9 +10,11 @@ const newId = require('./utils/id');
 const PORT = process.env.PORT || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 const app = express();
-app.get("/api/health", (req, res) => {
-    res.status(200).json({ ok: true });
+app.head("/t/:tag", (req, res) => {
+    // If the app is up enough to route, we're "awake"
+    return res.status(200).end();
 });
+
 
 // Behind Render/Proxy: needed so req.secure reflects X-Forwarded-Proto
 app.set('trust proxy', 1);
