@@ -41,9 +41,11 @@ function populateFormFromGram(gram) {
     document.getElementById("share").value = gram.slug
         ? `${SHOP_DOMAIN}/pages/gram?slug=${gram.slug}`
         : "";
+    const LOADER_DOMAIN = "https://soldacrnd.github.io/studio-loader";
     document.getElementById("nfcurl").value = gram.nfc_tag_id
-        ? `${SHOP_DOMAIN}/pages/gram?tag=${gram.nfc_tag_id}`
+        ? `${LOADER_DOMAIN}/?tag=${encodeURIComponent(gram.nfc_tag_id)}`
         : "";
+
 
     // Perks
     currentPerks = Array.isArray(gram.perks) ? gram.perks : [];
@@ -71,10 +73,11 @@ function populateFormFromGram(gram) {
 
         let url = "";
         if (gram.nfc_tag_id) {
-            url = `${SHOP_DOMAIN}/pages/gram?tag=${gram.nfc_tag_id}`;
+            url = `${LOADER_DOMAIN}/?tag=${encodeURIComponent(gram.nfc_tag_id)}`;
         } else if (gram.slug) {
             url = `${SHOP_DOMAIN}/pages/gram?slug=${gram.slug}`;
         }
+
 
         if (url) {
             new QRCode(qrContainer, {
@@ -1493,7 +1496,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const nfcTag = "TAG-" + id;
 
             const shareUrl = `${SHOP_DOMAIN}/pages/gram?slug=${slug}`;
-            const nfcUrl = `${SHOP_DOMAIN}/pages/gram?tag=${nfcTag}`;
+            const LOADER_DOMAIN = "https://soldacrnd.github.io/studio-loader";
+            const nfcUrl = `${LOADER_DOMAIN}/?tag=${encodeURIComponent(nfcTag)}`;
 
             const gram = {
                 id,
@@ -1603,6 +1607,33 @@ document.addEventListener('DOMContentLoaded', () => {
         loadClaimsBtn.addEventListener("click", loadClaims);
     })();
 
+    // -----------------------------
+    // Copy-to-clipboard buttons
+    // -----------------------------
+    document.addEventListener("click", async (e) => {
+        const btn = e.target.closest(".copy-btn");
+        if (!btn) return;
+
+        const inputId = btn.dataset.copy;
+        const input = document.getElementById(inputId);
+        if (!input || !input.value) return;
+
+        try {
+            await navigator.clipboard.writeText(input.value);
+
+            const original = btn.textContent;
+            btn.textContent = "Copied ✓";
+            btn.disabled = true;
+
+            setTimeout(() => {
+                btn.textContent = original;
+                btn.disabled = false;
+            }, 1200);
+        } catch (err) {
+            console.error("Copy failed:", err);
+            alert("Copy failed. You can manually select and copy.");
+        }
+    });
 
     // Save Gram to backend (Supabase)
     if (saveBtn) {
