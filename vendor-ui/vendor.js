@@ -801,40 +801,44 @@
     });
   }
 
-  async function loadPerks() {
-    const business_id = (businessIdEl.value || localStorage.getItem("vendor_business_id") || "").trim();
-    const gram_id = (gramIdEl.value || "").trim();
+    async function loadPerks() {
+        const business_id = (businessIdEl.value || localStorage.getItem("vendor_business_id") || "").trim();
+        let gram_id = (gramIdEl.value || "").trim(); // ✅ only declare once
 
-    if (!business_id) return alert("Business ID required");
+        if (!business_id) return alert("Business ID required");
 
-      setStatus("Loading perks…");
-      let url = `${API_BASE}/api/vendor/perks?business_id=${encodeURIComponent(business_id)}`;
-      if (gram_id) url += `&gram_id=${encodeURIComponent(gram_id)}`;
-    const out = await apiGet(url);
+        setStatus("Loading perks…");
 
-    debugEl.textContent = `HTTP ${out.status}\n` + (out.raw || "");
+        // Normalize gram_id input:
+        // - Accept TAG-G006 pasted by accident
+        if (/^TAG-/i.test(gram_id)) gram_id = gram_id.replace(/^TAG-/i, "");
 
-    if (!out.ok || !out.data?.ok) {
-      setStatus(`Failed: ${out.data?.error || "UNKNOWN"}`);
-      return;
+        // - Accept full URL pasted by accident; extract ?tag= / ?nfcTagId=
+        try {
+            if (/^https?:\/\//i.test(gram_id)) {
+                const u = new URL(gram_id);
+                const t = u.searchParams.get("tag") || u.searchParams.get("nfcTagId") || "";
+                if (t) gram_id = t.replace(/^TAG-/i, "");
+            }
+        } catch (_) { }
+
+        // Build URL AFTER normalization
+        let url = `${API_BASE}/api/vendor/perks?business_id=${encodeURIComponent(business_id)}`;
+        if (gram_id) url += `&gram_id=${encodeURIComponent(gram_id)}`;
+
+        const out = await apiGet(url);
+
+        debugEl.textContent = `HTTP ${out.status}\n` + (out.raw || "");
+
+        if (!out.ok || !out.data?.ok) {
+            setStatus(`Failed: ${out.data?.error || "UNKNOWN"}`);
+            return;
+        }
+
+        render(out.data.perks || []);
+        setStatus(`Loaded ${out.data.perks?.length || 0} perks.`);
     }
-      let gram_id = (gramIdEl.value || "").trim();
 
-      // Accept TAG-G006 pasted by accident
-      if (/^TAG-/i.test(gram_id)) gram_id = gram_id.replace(/^TAG-/i, "");
-      // Accept full URL pasted by accident
-      try {
-          if (/^https?:\/\//i.test(gram_id)) {
-              const u = new URL(gram_id);
-              const t = u.searchParams.get("tag") || u.searchParams.get("nfcTagId") || "";
-              if (t) gram_id = t.replace(/^TAG-/i, "");
-          }
-      } catch (_) { }
-
-
-    render(out.data.perks || []);
-    setStatus(`Loaded ${out.data.perks?.length || 0} perks.`);
-    }
     if (saveProfileBtn) saveProfileBtn.onclick = saveProfile;
 
     // load after we have creds (on page load)

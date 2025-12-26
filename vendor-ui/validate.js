@@ -87,7 +87,7 @@
         vendorSecretEl.value = localStorage.getItem("vendor_secret") || "";
 
         // Accept both ?tag= and ?nfcTagId=
-        const tag = normalizeTag(tagEl.value);
+        const tag = normalizeTag(nfcTagIdEl.value);
         nfcTagIdEl.value = qs("nfcTagId") || qs("tag") || "";
 
         // Accept ?business_id=
