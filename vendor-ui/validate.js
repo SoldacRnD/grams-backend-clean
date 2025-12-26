@@ -36,6 +36,23 @@
             noPerksDesc: "Esta Gram não tem perks resgatáveis para o teu negócio."
         }
     };
+    function normalizeTag(input) {
+        const raw = String(input || "").trim();
+        if (!raw) return "";
+
+        // If user pasted a full URL, try to extract ?tag=...
+        if (raw.startsWith("http://") || raw.startsWith("https://")) {
+            try {
+                const u = new URL(raw);
+                return (u.searchParams.get("tag") || u.searchParams.get("nfcTagId") || "").trim();
+            } catch (_) {
+                return "";
+            }
+        }
+
+        // Otherwise assume it's already TAG-...
+        return raw;
+    }
 
     function getLang() { return localStorage.getItem("vendor_lang") || "en"; }
     function setLang(lang) { localStorage.setItem("vendor_lang", lang); applyLang(); }
@@ -70,6 +87,7 @@
         vendorSecretEl.value = localStorage.getItem("vendor_secret") || "";
 
         // Accept both ?tag= and ?nfcTagId=
+        const tag = normalizeTag(tagEl.value);
         nfcTagIdEl.value = qs("nfcTagId") || qs("tag") || "";
 
         // Accept ?business_id=

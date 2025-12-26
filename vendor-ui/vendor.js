@@ -818,6 +818,19 @@
       setStatus(`Failed: ${out.data?.error || "UNKNOWN"}`);
       return;
     }
+      let gram_id = (gramIdEl.value || "").trim();
+
+      // Accept TAG-G006 pasted by accident
+      if (/^TAG-/i.test(gram_id)) gram_id = gram_id.replace(/^TAG-/i, "");
+      // Accept full URL pasted by accident
+      try {
+          if (/^https?:\/\//i.test(gram_id)) {
+              const u = new URL(gram_id);
+              const t = u.searchParams.get("tag") || u.searchParams.get("nfcTagId") || "";
+              if (t) gram_id = t.replace(/^TAG-/i, "");
+          }
+      } catch (_) { }
+
 
     render(out.data.perks || []);
     setStatus(`Loaded ${out.data.perks?.length || 0} perks.`);
@@ -830,7 +843,7 @@
     // also reload profile after saving auth (so switching vendors updates profile)
     const oldSave = saveBusinessBtn.onclick;
     saveBusinessBtn.onclick = async () => {
-        oldSave();
+        await oldSave();
         await loadProfile();
     };
 
