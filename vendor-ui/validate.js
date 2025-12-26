@@ -167,102 +167,119 @@
     return `${r}s`;
   }
 
-  function renderValidated(payload) {
-    const g = payload.gram;
-      const perks = payload.perks || [];
+    function renderValidated(payload) {
+        const g = payload.gram;
+        const perks = payload.perks || [];
 
-    if (!perks.length) {
-      resultEl.innerHTML = `
-        <div class="card">
-          <div class="form">
-            <h2>No perks for this vendor</h2>
-            <h2>${t("noPerks")}</h2>
-            <p class="muted">${t("noPerksDesc")}</p>
-            <p class="muted">This Gram has no redeemable perks for your business.</p>
-          </div>
-        </div>
-      `;
-      return;
-    }
-
-    resultEl.innerHTML = `
+        if (!perks.length) {
+            resultEl.innerHTML = `
       <div class="card">
         <div class="form">
-          <div style="display:flex; gap:12px; align-items:center;">
-            <img src="${g.image_url}" style="width:72px;height:72px;object-fit:cover;border-radius:12px;border:1px solid #eee;" />
-            <div>
-              <h2 style="margin:0;">${g.title}</h2>
-              <div class="muted">Gram: ${g.id}</div>
-            </div>
-          </div>
-
-          <div style="margin-top:12px;">
-            ${perks.map(p => {
-                const state = p.state;
-                const disabled = state !== "available";
-                const label = state === "available"
-                    ? t("approve")
-                    : `${t("cooldown")} (${msToHuman(p.cooldown_remaining_ms)})`;
-
-                return `
-    <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin:10px 0;">
-      <div>
-        <strong>${p.business_name || p.business_id}</strong>
-        <div class="muted" style="margin-top:4px;">
-  ${p.type}
-  ${p.type === "free_item" && p.metadata?.item_name
-                        ? ` • item: ${p.metadata.item_name}`
-                        : ""
-                    }
-  ${p.type === "discount" && (p.metadata?.discount_percent != null)
-                        ? ` • ${p.metadata.discount_percent}%`
-                        : ""
-                    }
-  ${p.type === "access" && p.metadata?.access_label
-                        ? ` • ${p.metadata.access_label}`
-                        : ""
-  }
-</div>
-
-        ${p.cooldown_seconds ? `<div class="muted">Cooldown: ${p.cooldown_seconds}s</div>` : ``}
-      </div>
-
-      <div style="text-align:right;">
-        <button
-          class="btn primary"
-          data-approve="${p.id}"
-          ${disabled ? "disabled" : ""}
-          title="${disabled ? "This perk is not currently available." : "Approve redemption"}"
-        >
-          ${label}
-        </button>
-      </div>
-    </div>
-  `;
-            }).join("")}
-
-          </div>
+          <h2>${t("noPerks")}</h2>
+          <p class="muted">${t("noPerksDesc")}</p>
         </div>
       </div>
     `;
-
-    resultEl.querySelectorAll("button[data-approve]").forEach(btn => {
-      btn.onclick = async () => {
-        const perk_id = btn.getAttribute("data-approve");
-        const nfcTagId = (nfcTagIdEl.value || "").trim();
-        setStatus("Approving…");
-        const out = await apiPost(`${API_BASE}/api/vendor/validate/approve`, { nfcTagId, perk_id });
-
-        if (!out.ok || !out.data?.ok) {
-          setStatus(`Failed: ${out.data?.error || "UNKNOWN"}`);
-          alert(out.data?.error || "Approve failed");
-          return;
+            return;
         }
-        setStatus("Approved ✅ Reloading status…");
-        await load();
-      };
-    });
-  }
+
+        resultEl.innerHTML = `
+    <div class="card">
+      <div class="form">
+
+        <div class="counter-instruction">
+          <strong>🧾 Counter check</strong>
+          <p id="counterInstruction"></p>
+        </div>
+
+        <div style="display:flex; gap:12px; align-items:center;">
+          <img
+            src="${g.image_url}"
+            style="width:72px;height:72px;object-fit:cover;border-radius:12px;border:1px solid #eee;"
+            alt="${g.title || "Gram"}"
+          />
+          <div>
+            <h2 style="margin:0;">${g.title || "Gram"}</h2>
+            <div class="muted">Gram: ${g.id}</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;">
+          ${perks.map(p => {
+            const state = p.state;
+            const disabled = state !== "available";
+            const label = state === "available"
+                ? t("approve")
+                : `${t("cooldown")} (${msToHuman(p.cooldown_remaining_ms)})`;
+
+            return `
+              <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin:10px 0;">
+                <div>
+                  <strong>${p.business_name || p.business_id}</strong>
+
+                  <div class="muted" style="margin-top:4px;">
+                    ${p.type}
+                    ${p.type === "free_item" && p.metadata?.item_name ? ` • item: ${p.metadata.item_name}` : ""}
+                    ${p.type === "discount" && (p.metadata?.discount_percent != null) ? ` • ${p.metadata.discount_percent}%` : ""}
+                    ${p.type === "access" && p.metadata?.access_label ? ` • ${p.metadata.access_label}` : ""}
+                  </div>
+
+                  ${p.cooldown_seconds ? `<div class="muted">Cooldown: ${p.cooldown_seconds}s</div>` : ``}
+                </div>
+
+                <div style="text-align:right;">
+                  <button
+                    class="btn primary"
+                    data-approve="${p.id}"
+                    ${disabled ? "disabled" : ""}
+                    title="${disabled ? "This perk is not currently available." : "Approve redemption"}"
+                  >
+                    ${label}
+                  </button>
+                </div>
+              </div>
+            `;
+        }).join("")}
+        </div>
+
+      </div>
+    </div>
+  `;
+
+        // ✅ A1: Set instruction text AFTER HTML exists
+        const COUNTER_COPY = {
+            en: "Ask the customer to show the physical Gram. Confirm the image matches before approving.",
+            pt: "Peça ao cliente para mostrar a Gram física. Confirme se a imagem corresponde antes de aprovar."
+        };
+
+        const el = document.getElementById("counterInstruction");
+        if (el) el.textContent = COUNTER_COPY[getLang()] || COUNTER_COPY.en;
+
+        // Approve handlers
+        resultEl.querySelectorAll("button[data-approve]").forEach(btn => {
+            btn.onclick = async () => {
+                const perk_id = btn.getAttribute("data-approve");
+                const nfcTagId = (nfcTagIdEl.value || "").trim();
+                setStatus(t("approving"));
+
+                const out = await apiPost(`${API_BASE}/api/vendor/validate/approve`, { nfcTagId, perk_id });
+
+                if (!out.ok || !out.data?.ok) {
+                    setStatus(`Failed: ${out.data?.error || "UNKNOWN"}`);
+                    alert(out.data?.error || "Approve failed");
+                    return;
+                }
+
+                // (Optional polish) show instant success before reload
+                btn.textContent = "Approved ✓";
+                btn.disabled = true;
+
+                setStatus("Approved ✅ Reloading status…");
+                await load();
+            };
+        });
+    }
+
 
   async function load() {
     const nfcTagId = (nfcTagIdEl.value || "").trim();
