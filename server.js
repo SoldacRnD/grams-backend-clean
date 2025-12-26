@@ -1163,16 +1163,11 @@ app.post('/api/producer/grams', async (req, res) => {
             saved = await db.rebuildGramPerksSnapshot(saved.id);
         } catch (syncErr) {
             console.error('Perks sync/rebuild failed (non-fatal for gram save):', syncErr);
-            // If you prefer strict: return 500 here. For now we keep gram save resilient.
-        }
-
-        // ✅ NEW (Checkpoint 11.0 Part A):
-        // Sync normalized perks table + rebuild grams.perks snapshot
-        try {
-            await db.replacePerksForGram(saved.id, incomingPerks);
-            saved = await db.rebuildGramPerksSnapshot(saved.id);
-        } catch (syncErr) {
-            console.error('Perks sync/rebuild failed (non-fatal for gram save):', syncErr);
+            return res.status(500).json({
+                ok: false,
+                error: "PERKS_SYNC_FAILED",
+                details: String(syncErr?.message || syncErr)
+            });
         }
 
         return res.json({ ok: true, gram: saved });
